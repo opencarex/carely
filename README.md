@@ -36,14 +36,14 @@ The system includes:
 
 Carely supports six primary user roles.
 
-| Role | Main responsibilities |
-| --- | --- |
-| **Patient** | Register, verify an email address, sign in, find a doctor, book and view appointments, view queue position, and view prescriptions |
-| **Receptionist** | Search or register patients, create appointments, handle walk-ins, check patients into queues, and update queue status |
-| **Nurse** | View the intake queue, record vital signs, initial complaints and preliminary notes |
-| **Doctor** | Manage availability, review assigned patients, record clinical notes, create prescriptions and complete consultations |
-| **Pharmacist** | View issued prescriptions, dispense complete prescriptions, maintain medicine stock and prevent over-dispensing |
-| **System Admin** | Manage staff accounts, roles, specialties, doctor-finder mappings, hospital settings and audit records |
+| Role             | Main responsibilities                                                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Patient**      | Register, verify an email address, sign in, find a doctor, book and view appointments, view queue position, and view prescriptions |
+| **Receptionist** | Search or register patients, create appointments, handle walk-ins, check patients into queues, and update queue status             |
+| **Nurse**        | View the intake queue, record vital signs, initial complaints and preliminary notes                                                |
+| **Doctor**       | Manage availability, review assigned patients, record clinical notes, create prescriptions and complete consultations              |
+| **Pharmacist**   | View issued prescriptions, dispense complete prescriptions, maintain medicine stock and prevent over-dispensing                    |
+| **System Admin** | Manage staff accounts, roles, specialties, doctor-finder mappings, hospital settings and audit records                             |
 
 ---
 
@@ -162,6 +162,8 @@ The updated admin UI structure and demo-data limitations are documented in [Admi
 
 The pharmacist and receptionist UI workflows and temporary demo-state removal conditions are documented in [Pharmacy and reception UI](docs/pharmacy-reception-ui.md).
 
+The patient UI structure, demo workflows, and planned removal of temporary booking state are documented in [Patient UI](docs/patient-ui.md).
+
 ### Request Flow
 
 ```text
@@ -184,24 +186,24 @@ Business rules and authorization must remain on the server. Hiding an action in 
 
 ## Technology Stack
 
-| Area | Technology |
-| --- | --- |
-| Full-stack application | Next.js 16 with App Router |
-| Language | TypeScript |
-| Styling | Tailwind CSS |
-| UI components | shadcn/ui |
-| Forms | React Hook Form |
-| Icons | Lucide |
-| Authentication | Better Auth |
-| Authorization | Server-side role-based access control |
-| Validation | Zod |
-| Database | PostgreSQL |
-| ORM | Drizzle ORM |
-| Email | Nodemailer with configurable SMTP |
-| Queue refresh | Native `fetch` with a custom polling hook |
-| Package manager | pnpm |
-| Deployment | Docker and Docker Compose |
-| UI/UX design | Figma |
+| Area                   | Technology                                |
+| ---------------------- | ----------------------------------------- |
+| Full-stack application | Next.js 16 with App Router                |
+| Language               | TypeScript                                |
+| Styling                | Tailwind CSS                              |
+| UI components          | shadcn/ui                                 |
+| Forms                  | React Hook Form                           |
+| Icons                  | Lucide                                    |
+| Authentication         | Better Auth                               |
+| Authorization          | Server-side role-based access control     |
+| Validation             | Zod                                       |
+| Database               | PostgreSQL                                |
+| ORM                    | Drizzle ORM                               |
+| Email                  | Nodemailer with configurable SMTP         |
+| Queue refresh          | Native `fetch` with a custom polling hook |
+| Package manager        | pnpm                                      |
+| Deployment             | Docker and Docker Compose                 |
+| UI/UX design           | Figma                                     |
 
 Gmail SMTP is used only as the pilot email provider. Carely keeps SMTP settings configurable so another provider can be used by a hospital.
 

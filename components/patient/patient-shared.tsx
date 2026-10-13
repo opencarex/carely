@@ -2,30 +2,6 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export const patientMedicines = [
-  {
-    code: "AM",
-    name: "Amoxicillin",
-    form: "500 mg capsule",
-    dose: "1 capsule · three times daily",
-    note: "Take after meals · 5 days",
-  },
-  {
-    code: "PA",
-    name: "Paracetamol",
-    form: "500 mg tablet",
-    dose: "2 tablets · when required",
-    note: "Maximum 3 times per day",
-  },
-  {
-    code: "OM",
-    name: "Omeprazole",
-    form: "20 mg capsule",
-    dose: "1 capsule · once daily",
-    note: "Take before breakfast · 7 days",
-  },
-] as const;
-
 export function StatusBadge({
   children,
   tone = "blue",
@@ -116,38 +92,6 @@ export function StepGuide({
         <p className="text-foreground text-sm font-semibold">{title}</p>
         <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{copy}</p>
       </div>
-    </div>
-  );
-}
-
-export function SegmentedTabs({
-  active,
-  inactive,
-  fullWidth = false,
-}: {
-  active: string;
-  inactive: string;
-  fullWidth?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "bg-card mb-5 flex h-11 gap-1.5 rounded-xl border p-1 shadow-xs sm:h-12",
-        fullWidth ? "w-full" : "w-fit"
-      )}
-    >
-      <button
-        type="button"
-        className="bg-primary text-primary-foreground rounded-lg px-4 text-xs font-semibold transition-colors sm:px-5 sm:text-sm"
-      >
-        {active}
-      </button>
-      <button
-        type="button"
-        className="text-muted-foreground hover:text-foreground rounded-lg px-4 text-xs font-medium transition-colors sm:px-5 sm:text-sm"
-      >
-        {inactive}
-      </button>
     </div>
   );
 }
