@@ -156,6 +156,8 @@ flowchart LR
     App --> Email
 ```
 
+The nurse UI structure, planned data integration, and temporary provider removal conditions are documented in [Nurse architecture](docs/nurse-architecture.md).
+
 ### Request Flow
 
 ```text

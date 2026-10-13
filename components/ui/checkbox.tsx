@@ -1,0 +1,31 @@
+"use client";
+
+import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
+import { Check, Minus } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
+  return (
+    <CheckboxPrimitive.Root
+      data-slot="checkbox"
+      className={cn(
+        "border-input bg-card text-primary-foreground focus-visible:border-ring focus-visible:ring-ring/40 data-[checked]:bg-primary data-[checked]:border-primary data-[indeterminate]:bg-primary data-[indeterminate]:border-primary aria-invalid:border-destructive aria-invalid:ring-destructive/20 peer inline-flex size-4 shrink-0 items-center justify-center rounded border outline-none focus-visible:ring-2 data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
+        className
+      )}
+      {...props}
+    >
+      <CheckboxPrimitive.Indicator
+        data-slot="checkbox-indicator"
+        className="flex items-center justify-center"
+      >
+        {props.indeterminate ? (
+          <Minus className="size-3.5" />
+        ) : (
+          <Check className="size-3.5" />
+        )}
+      </CheckboxPrimitive.Indicator>
+    </CheckboxPrimitive.Root>
+  );
+}
+
+export { Checkbox };

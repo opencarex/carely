@@ -5,9 +5,10 @@ import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { mockCredentials } from "@/lib/mock/auth";
 import { appContent } from "@/lib/mock/content";
 import type { LoginInput } from "@/lib/schemas/auth";
@@ -19,6 +20,7 @@ function LoginForm({ defaultValues }: { defaultValues: LoginInput }) {
   const [showPassword, setShowPassword] = useState(false);
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginInput>({
@@ -44,7 +46,7 @@ function LoginForm({ defaultValues }: { defaultValues: LoginInput }) {
       values.email === mockCredentials.nurse.email &&
       values.password === mockCredentials.nurse.password
     ) {
-      router.push("/nurse/intake");
+      router.push("/nurse/vitals");
     } else if (
       values.email === mockCredentials.receptionist.email &&
       values.password === mockCredentials.receptionist.password
@@ -102,10 +104,19 @@ function LoginForm({ defaultValues }: { defaultValues: LoginInput }) {
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
         <label className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 select-none">
-          <input
-            type="checkbox"
-            className="border-border accent-primary size-4 rounded"
-            {...register("rememberMe")}
+          <Controller
+            name="rememberMe"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="rememberMe"
+                name={field.name}
+                checked={Boolean(field.value)}
+                onCheckedChange={field.onChange}
+                onBlur={field.onBlur}
+                inputRef={field.ref}
+              />
+            )}
           />
           <span>Keep me signed in</span>
         </label>

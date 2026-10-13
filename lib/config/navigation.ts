@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+﻿import type { LucideIcon } from "lucide-react";
 import {
   CalendarClock,
   CalendarDays,
@@ -38,9 +38,13 @@ export const roleNavigation: Record<string, NavItem[]> = {
     { label: "Availability", href: "/doctor/availability", icon: CalendarClock },
   ],
   nurse: [
-    { label: "Patient Intake", href: "/nurse/intake", icon: ClipboardPlus },
-    { label: "Queue Management", href: "/nurse/queue", icon: ListOrdered },
-    { label: "Preliminary Notes", href: "/nurse/notes", icon: NotebookPen },
+    { label: "Record Vitals", href: "/nurse/vitals", icon: ClipboardPlus },
+
+    {
+      label: "Preliminary Records",
+      href: "/nurse/preliminary-records",
+      icon: NotebookPen,
+    },
   ],
   reception: [
     { label: "Walk-in Registration", href: "/reception/register", icon: UserPlus },
