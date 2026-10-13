@@ -160,6 +160,8 @@ The nurse UI structure, planned data integration, and temporary provider removal
 
 The updated admin UI structure and demo-data limitations are documented in [Admin UI](docs/admin-ui.md).
 
+The pharmacist and receptionist UI workflows and temporary demo-state removal conditions are documented in [Pharmacy and reception UI](docs/pharmacy-reception-ui.md).
+
 ### Request Flow
 
 ```text

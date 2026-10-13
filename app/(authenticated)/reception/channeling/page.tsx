@@ -1,9 +1,19 @@
 import type { Metadata } from "next";
-import { ReceptionChanneling } from "@/components/workspace/reception-content";
+import { PageTitle } from "@/components/workspace/workspace-ui";
+import { OnSiteChanneling } from "@/components/reception/on-site-channeling";
 
 export const metadata: Metadata = { title: "On-site Channeling" };
 export const instant = false;
 
-export default function ReceptionChannelingPage() {
-  return <ReceptionChanneling />;
+export default function OnSiteChannelingPage() {
+  return (
+    <>
+      <PageTitle
+        eyebrow="Front desk"
+        title="On-site Channeling"
+        description="Assign a walk-in patient to an available doctor slot."
+      />
+      <OnSiteChanneling />
+    </>
+  );
 }

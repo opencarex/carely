@@ -3,7 +3,6 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarPlus,
-  ClipboardList,
   ClipboardPenLine,
   ClipboardPlus,
   LayoutDashboard,
@@ -50,11 +49,16 @@ export const roleNavigation: Record<string, NavItem[]> = {
     { label: "Walk-in Registration", href: "/reception/register", icon: UserPlus },
     { label: "On-site Channeling", href: "/reception/channeling", icon: CalendarPlus },
     { label: "Queue Management", href: "/reception/queue", icon: ListOrdered },
+    {
+      label: "Appointments & Check-in",
+      href: "/reception/appointments",
+      icon: CalendarDays,
+    },
   ],
   pharmacy: [
     { label: "Inventory", href: "/pharmacy", icon: PackageSearch },
     { label: "Edit Stock", href: "/pharmacy/stock", icon: PackageOpen },
-    { label: "Stock Requests", href: "/pharmacy/requests", icon: ClipboardList },
+    { label: "Prescriptions", href: "/pharmacy/prescriptions", icon: Pill },
   ],
   admin: [
     { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
