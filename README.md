@@ -158,6 +158,8 @@ flowchart LR
 
 The nurse UI structure, planned data integration, and temporary provider removal conditions are documented in [Nurse architecture](docs/nurse-architecture.md).
 
+The updated admin UI structure and demo-data limitations are documented in [Admin UI](docs/admin-ui.md).
+
 ### Request Flow
 
 ```text

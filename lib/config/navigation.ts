@@ -61,5 +61,6 @@ export const roleNavigation: Record<string, NavItem[]> = {
     { label: "Staff Management", href: "/admin/staff", icon: Users },
     { label: "System Settings", href: "/admin/settings", icon: Settings },
     { label: "Audit Trail", href: "/admin/audit", icon: ScrollText },
+    { label: "Doctor Finder", href: "/admin/doctor-finder", icon: Search },
   ],
 };
