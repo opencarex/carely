@@ -69,13 +69,6 @@ function LoginForm({ defaultValues }: { defaultValues: LoginInput }) {
       router.push(getRedirectDestination("/pharmacy"));
       return;
     }
-    if (
-      values.email === mockCredentials.admin.email &&
-      values.password === mockCredentials.admin.password
-    ) {
-      router.push(getRedirectDestination("/admin"));
-      return;
-    }
 
     // 2. Real patient/staff sign-in via Better Auth
     try {

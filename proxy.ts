@@ -5,7 +5,7 @@ import { hasActiveSession, isPatientRoute } from "@/lib/proxy";
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isPatientRoute(pathname)) {
+  if (isPatientRoute(pathname) || pathname.startsWith("/admin")) {
     if (!hasActiveSession(request)) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
@@ -17,5 +17,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/patient/:path*"],
+  matcher: ["/patient/:path*", "/admin/:path*"],
 };
