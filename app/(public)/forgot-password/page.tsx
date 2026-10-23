@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
     >
       <AuthCard
         title="Reset your password"
-        description="Enter your verified email address. We will send a secure password-reset link."
+        description="Enter your verified email address. We will send a 6-digit verification code to reset your password."
       >
         <PasswordResetForm />
       </AuthCard>

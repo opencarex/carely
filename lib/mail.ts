@@ -19,7 +19,11 @@ let cachedOtpHtmlTemplate: string | null = null;
 let cachedOtpTxtTemplate: string | null = null;
 
 async function getOtpEmailTemplates() {
-  if (process.env.NODE_ENV === "production" && cachedOtpHtmlTemplate && cachedOtpTxtTemplate) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    cachedOtpHtmlTemplate &&
+    cachedOtpTxtTemplate
+  ) {
     return { html: cachedOtpHtmlTemplate, txt: cachedOtpTxtTemplate };
   }
 
@@ -34,6 +38,44 @@ async function getOtpEmailTemplates() {
   if (process.env.NODE_ENV === "production") {
     cachedOtpHtmlTemplate = html;
     cachedOtpTxtTemplate = txt;
+  }
+
+  return { html, txt };
+}
+
+let cachedResetOtpHtmlTemplate: string | null = null;
+let cachedResetOtpTxtTemplate: string | null = null;
+
+async function getResetPasswordOtpEmailTemplates() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    cachedResetOtpHtmlTemplate &&
+    cachedResetOtpTxtTemplate
+  ) {
+    return { html: cachedResetOtpHtmlTemplate, txt: cachedResetOtpTxtTemplate };
+  }
+
+  const htmlPath = path.join(
+    process.cwd(),
+    "templates",
+    "emails",
+    "reset-password-otp.html"
+  );
+  const txtPath = path.join(
+    process.cwd(),
+    "templates",
+    "emails",
+    "reset-password-otp.txt"
+  );
+
+  const [html, txt] = await Promise.all([
+    fs.readFile(htmlPath, "utf-8"),
+    fs.readFile(txtPath, "utf-8"),
+  ]);
+
+  if (process.env.NODE_ENV === "production") {
+    cachedResetOtpHtmlTemplate = html;
+    cachedResetOtpTxtTemplate = txt;
   }
 
   return { html, txt };
@@ -102,6 +144,31 @@ export async function sendPatientVerificationOTP({
     from: emailFrom,
     to,
     subject: `Your ${hospitalName} verification code`,
+    text: renderTemplate(txt, tokens),
+    html: renderTemplate(html, tokens, escapeHtml),
+  });
+}
+
+export async function sendPasswordResetOTP({
+  to,
+  otp,
+  expiryMinutes = 10,
+}: SendVerificationOTPParams) {
+  const hospitalName = await getHospitalName();
+  const { html, txt } = await getResetPasswordOtpEmailTemplates();
+
+  const tokens: Record<string, string> = {
+    hospital_name: hospitalName,
+    otp_code: otp,
+    expiry_minutes: String(expiryMinutes),
+  };
+
+  const emailFrom = env.SMTP_FROM || `"${hospitalName}" <no-reply@carely.local>`;
+
+  return mailer.sendMail({
+    from: emailFrom,
+    to,
+    subject: `Reset your ${hospitalName} password`,
     text: renderTemplate(txt, tokens),
     html: renderTemplate(html, tokens, escapeHtml),
   });

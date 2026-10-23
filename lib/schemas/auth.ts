@@ -18,6 +18,31 @@ export const signupSchema = z
     path: ["confirmPassword"],
   });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email("Enter a valid email address"),
+});
+
+export const newPasswordSchema = z
+  .object({
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string().min(8, "Confirm your password"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+export const resetPasswordOtpSchema = z
+  .object({
+    otp: z.string().length(6, "Enter the 6-digit code"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string().min(8, "Confirm your password"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
 export const patientOnboardingSchema = z.object({
   fullName: z.string().trim().min(2, "Full name must be at least 2 characters"),
   phone: z.string().trim().min(7, "Enter a valid telephone number"),
@@ -48,6 +73,9 @@ export const patientOnboardingSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type SignupInput = z.infer<typeof signupSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type NewPasswordInput = z.infer<typeof newPasswordSchema>;
+export type ResetPasswordOtpInput = z.infer<typeof resetPasswordOtpSchema>;
 export type PatientOnboardingInput = z.infer<typeof patientOnboardingSchema>;
 
 export const roleSchema = z.enum([

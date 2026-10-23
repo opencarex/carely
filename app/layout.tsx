@@ -18,7 +18,7 @@ export const viewport: Viewport = {
   themeColor: "#1677ff",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
       <body className="min-h-screen antialiased">{children}</body>

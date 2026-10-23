@@ -4,7 +4,7 @@ import { admin, emailOTP } from "better-auth/plugins";
 import { db } from "@/lib/db";
 import { account, session, user, verification } from "@/lib/db/schema/auth";
 import { env } from "@/lib/env";
-import { sendPatientVerificationOTP } from "@/lib/mail";
+import { sendPatientVerificationOTP, sendPasswordResetOTP } from "@/lib/mail";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -36,7 +36,10 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    admin(),
+    admin({
+      defaultRole: "patient",
+      adminRoles: ["admin"],
+    }),
     emailOTP({
       overrideDefaultEmailVerification: true,
       sendVerificationOnSignUp: true,
@@ -44,6 +47,12 @@ export const auth = betterAuth({
       async sendVerificationOTP({ email, otp, type }) {
         if (type === "email-verification") {
           await sendPatientVerificationOTP({
+            to: email,
+            otp,
+            expiryMinutes: 10,
+          });
+        } else if (type === "forget-password") {
+          await sendPasswordResetOTP({
             to: email,
             otp,
             expiryMinutes: 10,

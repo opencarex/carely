@@ -4,19 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AtSign, CheckCircle2, Eye, EyeOff, Mail, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { ResendOtpButton } from "@/components/auth/resend-otp-button";
+import { SixDigitOtpInput } from "@/components/auth/six-digit-otp-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSeparator,
-  InputOTPSlot,
-} from "@/components/ui/input-otp";
-import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { authClient } from "@/lib/auth-client";
 import { INLINE_ICON_SIZE } from "@/lib/constants/ui";
+import { useCooldown } from "@/lib/hooks/use-cooldown";
 import type { SignupInput } from "@/lib/schemas/auth";
 import { signupSchema } from "@/lib/schemas/auth";
 
@@ -29,11 +25,12 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
   const [otp, setOtp] = useState("");
   const [otpError, setOtpError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
   const [isResending, setIsResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const { countdown: cooldown, startCooldown } = useCooldown(RESEND_COOLDOWN_SECONDS);
 
   const {
     register,
@@ -43,14 +40,6 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
     defaultValues,
     resolver: zodResolver(signupSchema),
   });
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setInterval(() => {
-      setCooldown((prev) => prev - 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
 
   const onSubmit = async (values: SignupInput) => {
     setServerError(null);
@@ -67,7 +56,7 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
       }
 
       setSubmittedEmail(values.email);
-      setCooldown(RESEND_COOLDOWN_SECONDS);
+      startCooldown();
     } catch {
       setServerError("An unexpected error occurred. Please try again.");
     }
@@ -91,7 +80,8 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
         return;
       }
 
-      router.push("/patient/onboarding");
+      router.push("/patient");
+      router.refresh();
     } catch {
       setOtpError("An unexpected error occurred while verifying. Please try again.");
     } finally {
@@ -115,7 +105,7 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
         setOtpError(error.message || "Failed to resend verification code.");
       } else {
         setResendSuccess(true);
-        setCooldown(RESEND_COOLDOWN_SECONDS);
+        startCooldown();
       }
     } catch {
       setOtpError("Could not resend code. Please try again later.");
@@ -127,20 +117,22 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
   if (submittedEmail) {
     return (
       <div className="space-y-5 text-center">
-        <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <div className="bg-primary/10 text-primary mx-auto flex size-14 items-center justify-center rounded-full">
           <Mail className="size-7" />
         </div>
 
         <div className="space-y-1.5">
-          <h3 className="text-xl font-bold tracking-tight text-foreground">Verify your email</h3>
+          <h3 className="text-foreground text-xl font-bold tracking-tight">
+            Verify your email
+          </h3>
           <p className="text-muted-foreground text-sm leading-relaxed">
             We sent a 6-digit verification code to{" "}
-            <span className="font-semibold text-foreground">{submittedEmail}</span>.
+            <span className="text-foreground font-semibold">{submittedEmail}</span>.
           </p>
         </div>
 
         {otpError ? (
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
             {otpError}
           </div>
         ) : null}
@@ -152,33 +144,15 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
           </div>
         ) : null}
 
-        <div className="flex justify-center py-2">
-          <InputOTP
-            maxLength={6}
-            pattern={REGEXP_ONLY_DIGITS}
-            value={otp}
-            onChange={(val) => {
-              setOtp(val);
-              if (val.length === 6) {
-                handleVerifyOtp(val);
-              }
-            }}
-            disabled={isVerifying}
-            autoFocus
-          >
-            <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-            </InputOTPGroup>
-            <InputOTPSeparator />
-            <InputOTPGroup>
-              <InputOTPSlot index={3} />
-              <InputOTPSlot index={4} />
-              <InputOTPSlot index={5} />
-            </InputOTPGroup>
-          </InputOTP>
-        </div>
+        <SixDigitOtpInput
+          value={otp}
+          onChange={(val) => {
+            setOtp(val);
+            if (otpError) setOtpError(null);
+          }}
+          onComplete={handleVerifyOtp}
+          disabled={isVerifying}
+        />
 
         <Button
           type="button"
@@ -195,24 +169,6 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
           )}
         </Button>
 
-        {process.env.NODE_ENV === "development" ? (
-          <div className="rounded-lg border border-border/60 bg-muted/30 p-3.5 text-xs text-muted-foreground">
-            <p className="font-semibold text-foreground">Local Development Mode</p>
-            <p className="mt-1">
-              Check your local Mailpit instance at{" "}
-              <a
-                href="http://localhost:8025"
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-primary underline"
-              >
-                http://localhost:8025
-              </a>{" "}
-              to view your 6-digit OTP code.
-            </p>
-          </div>
-        ) : null}
-
         <div className="flex items-center justify-between pt-2 text-xs">
           <button
             type="button"
@@ -226,20 +182,11 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
             ← Change email
           </button>
 
-          <button
-            type="button"
-            onClick={handleResend}
-            disabled={cooldown > 0 || isResending}
-            className="text-primary hover:underline disabled:no-underline font-semibold"
-          >
-            {isResending ? (
-              "Sending…"
-            ) : cooldown > 0 ? (
-              `Resend in ${cooldown}s`
-            ) : (
-              "Resend code"
-            )}
-          </button>
+          <ResendOtpButton
+            countdown={cooldown}
+            isResending={isResending}
+            onResend={handleResend}
+          />
         </div>
       </div>
     );
@@ -248,7 +195,7 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
   return (
     <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
       {serverError ? (
-        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="bg-destructive/10 text-destructive rounded-md p-3 text-sm">
           {serverError}
         </div>
       ) : null}
@@ -321,8 +268,8 @@ function SignupForm({ defaultValues }: { defaultValues: SignupInput }) {
         <div className="space-y-1">
           <p className="text-sm font-semibold">Verification code required</p>
           <p className="text-muted-foreground text-xs leading-relaxed font-normal">
-            A 6-digit verification code will be sent to your email to verify and activate your
-            patient account.
+            A 6-digit verification code will be sent to your email to verify and activate
+            your patient account.
           </p>
         </div>
       </div>
