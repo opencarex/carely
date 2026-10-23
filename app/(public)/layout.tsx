@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { auth } from "@/lib/auth";
 import { getDefaultRouteForRole } from "@/lib/config/navigation";
 
+export const instant = false;
+
 export default async function PublicLayout({ children }: { children: ReactNode }) {
   let session = null;
   try {
