@@ -25,7 +25,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   });
 
   if (!session?.user) {
-    redirect("/login?callbackUrl=/patient/dashboard");
+    redirect("/login?callbackUrl=/patient");
   }
 
   return (

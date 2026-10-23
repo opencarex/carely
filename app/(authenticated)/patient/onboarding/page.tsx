@@ -68,7 +68,7 @@ export default function PatientOnboardingPage() {
 
       setCompletedPatientNo(data.patient?.patientNo || data.patientNo);
       setTimeout(() => {
-        router.push("/patient/dashboard");
+        router.push("/patient");
       }, 2000);
     } catch {
       setServerError("An unexpected error occurred. Please try again.");

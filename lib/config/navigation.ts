@@ -1,4 +1,4 @@
-﻿import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import {
   CalendarClock,
   CalendarDays,
@@ -68,3 +68,23 @@ export const roleNavigation: Record<string, NavItem[]> = {
     { label: "Doctor Finder", href: "/admin/doctor-finder", icon: Search },
   ],
 };
+
+export function getDefaultRouteForRole(role?: string | null): string {
+  switch (role) {
+    case "admin":
+      return "/admin";
+    case "doctor":
+      return "/doctor";
+    case "nurse":
+      return "/nurse/vitals";
+    case "reception":
+    case "receptionist":
+      return "/reception/register";
+    case "pharmacy":
+    case "pharmacist":
+      return "/pharmacy";
+    case "patient":
+    default:
+      return "/patient";
+  }
+}
