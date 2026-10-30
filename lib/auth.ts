@@ -1,10 +1,15 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, emailOTP } from "better-auth/plugins";
+import { count, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { account, session, user, verification } from "@/lib/db/schema/auth";
 import { env } from "@/lib/env";
-import { sendPatientVerificationOTP, sendPasswordResetOTP } from "@/lib/mail";
+import {
+  sendPatientVerificationOTP,
+  sendPasswordResetOTP,
+  sendStaffInviteEmail,
+} from "@/lib/mail";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -22,6 +27,36 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: true,
     resetPasswordTokenExpiresIn: 86400, // 24 hours globally
+    async sendResetPassword({ user, token }) {
+      const userRole = (user as { role?: string })?.role;
+      const [sessionRow] = await db
+        .select({ count: count() })
+        .from(session)
+        .where(eq(session.userId, user.id));
+      const sessionCount = Number(sessionRow?.count || 0);
+
+      const [accountRow] = await db
+        .select({ createdAt: account.createdAt, updatedAt: account.updatedAt })
+        .from(account)
+        .where(eq(account.userId, user.id))
+        .limit(1);
+
+      const isClaimed =
+        sessionCount > 0 ||
+        (accountRow ? accountRow.updatedAt.getTime() > accountRow.createdAt.getTime() : false);
+
+      const directClaimUrl = `${env.BETTER_AUTH_URL}/reset-password?token=${token}`;
+
+      if (!isClaimed && userRole !== "patient") {
+        await sendStaffInviteEmail({
+          to: user.email,
+          name: user.name,
+          role: userRole || "Staff",
+          claimUrl: directClaimUrl,
+          expiryHours: 24,
+        });
+      }
+    },
   },
   emailVerification: {
     autoSignInAfterVerification: true,

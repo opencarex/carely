@@ -1,73 +1,215 @@
-﻿"use client";
+"use client";
 
-import { useState, type FormEvent } from "react";
-import { Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm } from "react-hook-form";
+import { Loader2, Mail, Plus, UserCheck, UserX } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
-  SelectTrigger,
-  SelectValue,
   SelectContent,
   SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Panel } from "@/components/workspace/workspace-ui";
-import { adminStaff, staffRoles, type StaffMember } from "@/lib/mock/admin";
+import {
+  createStaffSchema,
+  type CreateStaffInput,
+  type StaffListItem,
+  type StaffRole,
+} from "@/lib/schemas/staff";
+
+interface SpecialtyOption {
+  id: string;
+  name: string;
+}
+
+const AVAILABLE_ROLES: { value: StaffRole; label: string }[] = [
+  { value: "doctor", label: "Doctor" },
+  { value: "nurse", label: "Nurse" },
+  { value: "pharmacist", label: "Pharmacist" },
+  { value: "receptionist", label: "Receptionist" },
+];
 
 export function StaffDirectory() {
-  const [staff, setStaff] = useState(adminStaff);
+  const [staff, setStaff] = useState<StaffListItem[]>([]);
+  const [specialties, setSpecialties] = useState<SpecialtyOption[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [editing, setEditing] = useState<StaffMember | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  // React Hook Form with Zod validation
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<CreateStaffInput>({
+    resolver: zodResolver(createStaffSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      role: "nurse",
+      department: "",
+      specialtyId: "",
+    },
+  });
+
+  const selectedRole = watch("role");
+
+  const roleItems = AVAILABLE_ROLES.map((r) => ({
+    value: r.value,
+    label: r.label,
+  }));
+
+  const specialtyItems = specialties.map((s) => ({
+    value: s.id,
+    label: s.name,
+  }));
+
+  // Load initial data from APIs
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const [staffRes, specialtiesRes] = await Promise.all([
+        fetch("/api/admin/staff"),
+        fetch("/api/admin/specialties"),
+      ]);
+
+      if (staffRes.ok) {
+        const staffData = await staffRes.json();
+        setStaff(staffData.staff || []);
+      }
+
+      if (specialtiesRes.ok) {
+        const specialtiesData = await specialtiesRes.json();
+        setSpecialties(specialtiesData.specialties || []);
+      }
+    } catch {
+      setError("Failed to fetch staff directory from server.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const filtered = staff.filter((item) =>
     `${item.name} ${item.email} ${item.department} ${item.role}`
       .toLowerCase()
       .includes(query.trim().toLowerCase())
   );
-  function openEditor(member?: StaffMember) {
-    setEditing(
-      member
-        ? { ...member }
-        : { id: "", name: "", email: "", role: "Nurse", department: "", active: true }
-    );
+
+  function openAddModal() {
+    reset({
+      name: "",
+      email: "",
+      role: "nurse",
+      department: "",
+      specialtyId: specialties[0]?.id || "",
+    });
     setMessage("");
     setError("");
+    setShowAddForm(true);
   }
-  function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editing) return;
-    const member = {
-      ...editing,
-      name: editing.name.trim(),
-      email: editing.email.trim(),
-      department: editing.department.trim(),
-    };
-    if (!member.name || !member.department) {
-      setError("Complete the name and department.");
-      return;
+
+  const handleCreateStaff = async (values: CreateStaffInput) => {
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch("/api/admin/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "Failed to create staff member.");
+        return;
+      }
+
+      setMessage(data.message || "Staff member created successfully!");
+      setShowAddForm(false);
+      reset();
+      await loadData();
+    } catch {
+      setError("Network error while creating staff member.");
     }
-    if (
-      staff.some(
-        (item) =>
-          item.id !== member.id && item.email.toLowerCase() === member.email.toLowerCase()
-      )
-    ) {
-      setError("A staff member already uses this email address.");
-      return;
+  };
+
+  async function handleToggleStatus(member: StaffListItem) {
+    setError("");
+    setMessage("");
+    setActionLoadingId(member.id);
+
+    try {
+      const response = await fetch(`/api/admin/staff/${member.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !member.active }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "Failed to update staff status.");
+        return;
+      }
+
+      setStaff((prev) =>
+        prev.map((item) =>
+          item.id === member.id ? { ...item, active: !member.active } : item
+        )
+      );
+      setMessage(
+        `Staff member "${member.name}" marked as ${!member.active ? "active" : "inactive"}.`
+      );
+    } catch {
+      setError("Failed to update staff status.");
+    } finally {
+      setActionLoadingId(null);
     }
-    setStaff((previous) =>
-      member.id
-        ? previous.map((item) => (item.id === member.id ? member : item))
-        : [...previous, { ...member, id: crypto.randomUUID() }]
-    );
-    setEditing(null);
-    setMessage("Staff details saved in this demo session.");
   }
+
+  async function handleResendInvite(member: StaffListItem) {
+    setError("");
+    setMessage("");
+    setActionLoadingId(member.id);
+
+    try {
+      const response = await fetch(`/api/admin/staff/${member.id}/resend-invite`, {
+        method: "POST",
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "Failed to resend invite.");
+        return;
+      }
+
+      setMessage(`Invitation email resent to ${member.email}.`);
+    } catch {
+      setError("Network error while resending invitation.");
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <Card className="p-4">
@@ -83,89 +225,171 @@ export function StaffDirectory() {
               controlSize="compact"
             />
           </div>
-          <Button onClick={() => openEditor()}>
-            <Plus />
+          <Button onClick={openAddModal}>
+            <Plus className="mr-1.5 h-4 w-4" />
             Add staff member
           </Button>
         </div>
       </Card>
-      {editing && (
-        <Panel title={editing.id ? "Manage staff member" : "Add staff member"}>
-          <form onSubmit={save} className="space-y-5">
+
+      {message && (
+        <div
+          role="status"
+          className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800"
+        >
+          {message}
+        </div>
+      )}
+
+      {error && (
+        <div
+          role="alert"
+          className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800"
+        >
+          {error}
+        </div>
+      )}
+
+      {showAddForm && (
+        <Panel title="Add New Staff Member">
+          <form onSubmit={handleSubmit(handleCreateStaff)} className="space-y-5" noValidate>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
-                id="staff-name"
+                id="new-staff-name"
                 label="Full name"
                 showLabel
-                required
                 maxLength={120}
-                value={editing.name}
-                onChange={(event) => setEditing({ ...editing, name: event.target.value })}
+                placeholder="e.g. Dr. Kasun Bandara"
+                disabled={isSubmitting}
+                error={errors.name?.message}
+                {...register("name")}
               />
+
               <Input
-                id="staff-email"
-                label="Email address"
+                id="new-staff-email"
+                label="Hospital email address"
                 showLabel
-                required
                 type="email"
-                value={editing.email}
-                onChange={(event) =>
-                  setEditing({ ...editing, email: event.target.value })
-                }
+                placeholder="e.g. k.bandara@carely.local"
+                disabled={isSubmitting}
+                error={errors.email?.message}
+                {...register("email")}
               />
+
               <div className="space-y-1.5">
-                <label htmlFor="staff-role" className="block text-xs font-semibold">
+                <label htmlFor="new-staff-role" className="block text-xs font-semibold">
                   Role
                 </label>
-                <Select
-                  value={editing.role}
-                  onValueChange={(role) => {
-                    if (role) setEditing({ ...editing, role });
-                  }}
-                >
-                  <SelectTrigger id="staff-role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {staffRoles.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {role}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="role"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      items={roleItems}
+                      value={field.value}
+                      onValueChange={(val) => {
+                        if (val) field.onChange(val as StaffRole);
+                      }}
+                    >
+                      <SelectTrigger id="new-staff-role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AVAILABLE_ROLES.map((r) => (
+                          <SelectItem key={r.value} value={r.value}>
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.role && (
+                  <p className="text-destructive text-xs">{errors.role.message}</p>
+                )}
               </div>
-              <Input
-                id="staff-department"
-                label="Department"
-                showLabel
-                required
-                maxLength={120}
-                value={editing.department}
-                onChange={(event) =>
-                  setEditing({ ...editing, department: event.target.value })
-                }
-              />
+
+              {selectedRole === "doctor" ? (
+                <div className="space-y-1.5">
+                  <label htmlFor="new-staff-specialty" className="block text-xs font-semibold">
+                    Medical Specialty <span className="text-rose-500">*</span>
+                  </label>
+                  <Controller
+                    name="specialtyId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        items={specialtyItems}
+                        value={field.value || ""}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger id="new-staff-specialty">
+                          <SelectValue placeholder="Select specialty">
+                            {(val) =>
+                              specialties.find((s) => s.id === val)?.name ||
+                              "Select specialty"
+                            }
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {specialties.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.specialtyId && (
+                    <p className="text-destructive text-xs">
+                      {errors.specialtyId.message}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <Input
+                  id="new-staff-dept"
+                  label="Department"
+                  showLabel
+                  maxLength={120}
+                  placeholder={
+                    selectedRole === "nurse"
+                      ? "e.g. OPD / Emergency"
+                      : selectedRole === "receptionist"
+                        ? "e.g. Main Lobby"
+                        : "e.g. Inpatient Pharmacy"
+                  }
+                  disabled={isSubmitting}
+                  error={errors.department?.message}
+                  {...register("department")}
+                />
+              )}
             </div>
-            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
-              <Checkbox
-                checked={editing.active}
-                onCheckedChange={(active) => setEditing({ ...editing, active })}
-              />
-              Active account
-            </label>
-            {error && (
-              <p role="alert" className="text-destructive text-sm">
-                {error}
-              </p>
-            )}
+
+            <p className="text-muted-foreground text-xs">
+              <strong>Zero-Knowledge Security:</strong> You do not need to create a temporary password.
+              An activation invitation will be dispatched automatically to the staff member&apos;s email.
+            </p>
+
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button type="submit">Save staff member</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving &amp; Dispatching Invite...
+                  </>
+                ) : (
+                  "Create Staff & Send Invite"
+                )}
+              </Button>
               <Button
                 type="button"
                 variant="outline"
+                disabled={isSubmitting}
                 onClick={() => {
-                  setEditing(null);
+                  setShowAddForm(false);
+                  reset();
                   setError("");
                 }}
               >
@@ -175,72 +399,120 @@ export function StaffDirectory() {
           </form>
         </Panel>
       )}
-      {message && (
-        <p role="status" className="text-primary text-sm">
-          {message}
-        </p>
-      )}
-      <Panel title="Staff directory">
-        <div className="space-y-3">
-          {filtered.map((member) => (
-            <article
-              key={member.id}
-              className="bg-carely-surface flex flex-col gap-4 rounded-xl p-4 xl:grid xl:grid-cols-12 xl:items-center"
-            >
-              <div className="flex min-w-0 items-center gap-3 xl:col-span-4">
-                <Avatar
-                  alt={member.name}
-                  fallback={member.name
-                    .replace(/^Dr\.\s*/, "")
-                    .split(" ")
-                    .slice(0, 2)
-                    .map((part) => part[0])
-                    .join("")}
-                />
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold">{member.name}</h3>
-                  <p className="text-muted-foreground mt-1 text-xs break-all">
-                    {member.email}
-                  </p>
+
+      <Panel title="Staff Directory">
+        {isLoading ? (
+          <div className="py-12 text-center text-sm text-slate-500">
+            <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-primary" />
+            Loading hospital staff...
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((member) => (
+              <article
+                key={member.id}
+                className="bg-carely-surface flex flex-col gap-4 rounded-xl p-4 xl:grid xl:grid-cols-12 xl:items-center"
+              >
+                <div className="flex min-w-0 items-center gap-3 xl:col-span-4">
+                  <Avatar
+                    alt={member.name}
+                    fallback={member.name
+                      .replace(/^Dr\.\s*/, "")
+                      .split(" ")
+                      .slice(0, 2)
+                      .map((part) => part[0])
+                      .join("")
+                      .toUpperCase() || "ST"}
+                  />
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold">{member.name}</h3>
+                    <p className="text-muted-foreground mt-0.5 text-xs break-all">
+                      {member.email}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <dl className="grid grid-cols-2 gap-3 text-sm xl:col-span-5">
-                <div>
-                  <dt className="text-muted-foreground text-xs xl:sr-only">Role</dt>
-                  <dd className="mt-1 xl:mt-0">{member.role}</dd>
+
+                <dl className="grid grid-cols-2 gap-3 text-sm xl:col-span-4">
+                  <div>
+                    <dt className="text-muted-foreground text-xs xl:sr-only">Role</dt>
+                    <dd className="mt-1 font-medium capitalize xl:mt-0">
+                      {member.role}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs xl:sr-only">Department</dt>
+                    <dd className="mt-1 xl:mt-0">{member.department}</dd>
+                  </div>
+                </dl>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 xl:col-span-4 xl:justify-end">
+                  {!member.active ? (
+                    <Badge className="bg-slate-100 text-slate-600">
+                      Inactive
+                    </Badge>
+                  ) : member.inviteStatus === "pending" ? (
+                    <Badge className="bg-amber-100 text-amber-800 border-amber-200">
+                      Pending Invite
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                      Active
+                    </Badge>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    {member.active && member.inviteStatus === "pending" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={actionLoadingId === member.id}
+                        onClick={() => handleResendInvite(member)}
+                        title="Resend invitation email"
+                      >
+                        {actionLoadingId === member.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <>
+                            <Mail className="mr-1.5 h-3.5 w-3.5" />
+                            Resend
+                          </>
+                        )}
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={actionLoadingId === member.id}
+                      onClick={() => handleToggleStatus(member)}
+                      title={member.active ? "Deactivate account" : "Re-activate account"}
+                    >
+                      {actionLoadingId === member.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : member.active ? (
+                        <>
+                          <UserX className="mr-1.5 h-3.5 w-3.5" />
+                          Deactivate
+                        </>
+                      ) : (
+                        <>
+                          <UserCheck className="mr-1.5 h-3.5 w-3.5" />
+                          Activate
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs xl:sr-only">Department</dt>
-                  <dd className="mt-1 xl:mt-0">{member.department}</dd>
-                </div>
-              </dl>
-              <div className="flex items-center justify-between gap-3 xl:col-span-3">
-                <Badge
-                  className={
-                    member.active
-                      ? "bg-carely-success-soft text-carely-success"
-                      : "bg-muted text-muted-foreground"
-                  }
-                >
-                  {member.active ? "Active" : "Inactive"}
-                </Badge>
-                <Button
-                  variant="link"
-                  size="sm"
-                  aria-label={`Manage ${member.name}`}
-                  onClick={() => openEditor(member)}
-                >
-                  Manage
-                </Button>
-              </div>
-            </article>
-          ))}
-          {!filtered.length && (
-            <p role="status" className="text-muted-foreground py-8 text-center text-sm">
-              No staff match your search.
-            </p>
-          )}
-        </div>
+              </article>
+            ))}
+
+            {!filtered.length && (
+              <p role="status" className="text-muted-foreground py-8 text-center text-sm">
+                No staff members found matching your search.
+              </p>
+            )}
+          </div>
+        )}
       </Panel>
     </div>
   );

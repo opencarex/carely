@@ -1,0 +1,376 @@
+import { randomBytes } from "node:crypto";
+import { hashPassword } from "better-auth/crypto";
+import { asc, count, desc, eq, inArray } from "drizzle-orm";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { account, session, user } from "@/lib/db/schema/auth";
+import { doctor } from "@/lib/db/schema/doctor";
+import { specialty } from "@/lib/db/schema/specialty";
+import type { CreateStaffInput, StaffListItem, StaffRole } from "@/lib/schemas/staff";
+
+export class StaffServiceError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode: number = 400) {
+    super(message);
+    this.name = "StaffServiceError";
+    this.statusCode = statusCode;
+  }
+}
+
+const STAFF_ROLES = ["doctor", "nurse", "pharmacist", "receptionist"] as const;
+
+/**
+ * Lists all registered staff members with their role, specialty, status, and claim state.
+ */
+export async function listStaffMembers(): Promise<StaffListItem[]> {
+  const staffUsers = await db
+    .select({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      banned: user.banned,
+      createdAt: user.createdAt,
+    })
+    .from(user)
+    .where(inArray(user.role, [...STAFF_ROLES]))
+    .orderBy(desc(user.createdAt));
+
+  if (staffUsers.length === 0) {
+    return [];
+  }
+
+  const staffUserIds = staffUsers.map((u) => u.id);
+
+  // Fetch doctors and linked specialties
+  const doctorProfiles = await db
+    .select({
+      userId: doctor.userId,
+      isActive: doctor.isActive,
+      specialtyId: specialty.id,
+      specialtyName: specialty.name,
+    })
+    .from(doctor)
+    .leftJoin(specialty, eq(doctor.specialtyId, specialty.id))
+    .where(inArray(doctor.userId, staffUserIds));
+
+  const doctorProfileMap = new Map(doctorProfiles.map((d) => [d.userId, d]));
+
+  // Count active sessions per staff member
+  const sessionCounts = await db
+    .select({
+      userId: session.userId,
+      count: count(),
+    })
+    .from(session)
+    .where(inArray(session.userId, staffUserIds))
+    .groupBy(session.userId);
+
+  const sessionCountMap = new Map(sessionCounts.map((s) => [s.userId, Number(s.count)]));
+
+  // Fetch account records to check whether password was set/claimed after initial creation
+  const accounts = await db
+    .select({
+      userId: account.userId,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+    })
+    .from(account)
+    .where(inArray(account.userId, staffUserIds));
+
+  const accountMap = new Map(accounts.map((a) => [a.userId, a]));
+
+  return staffUsers.map((member) => {
+    const docProfile = doctorProfileMap.get(member.id);
+    const sessions = sessionCountMap.get(member.id) ?? 0;
+    const acc = accountMap.get(member.id);
+    const isDoctor = member.role === "doctor";
+
+    const isClaimed =
+      sessions > 0 ||
+      (acc ? acc.updatedAt.getTime() > acc.createdAt.getTime() : false);
+
+    const active = isDoctor
+      ? !member.banned && (docProfile?.isActive ?? true)
+      : !member.banned;
+
+    const department = isDoctor
+      ? docProfile?.specialtyName || "General Practice"
+      : member.role === "nurse"
+        ? "Nursing Care"
+        : member.role === "receptionist"
+          ? "Front Desk"
+          : member.role === "pharmacist"
+            ? "Dispensary"
+            : "Operations";
+
+    return {
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      role: member.role as StaffRole,
+      department,
+      active,
+      inviteStatus: isClaimed ? "claimed" : "pending",
+      specialty: docProfile?.specialtyId
+        ? {
+            id: docProfile.specialtyId,
+            name: docProfile.specialtyName || "",
+          }
+        : null,
+      createdAt: member.createdAt.toISOString(),
+    };
+  });
+}
+
+/**
+ * Atomically provisions a staff user and sends the activation invitation email.
+ */
+export async function createStaffMember(input: CreateStaffInput): Promise<{
+  staff: StaffListItem;
+  inviteSent: boolean;
+  message: string;
+}> {
+  const normalizedEmail = input.email.trim().toLowerCase();
+
+  // Check for existing user with identical email
+  const existing = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(user.email, normalizedEmail))
+    .limit(1);
+
+  if (existing.length > 0) {
+    throw new StaffServiceError(
+      "A user account already exists with this email address.",
+      409
+    );
+  }
+
+  // Validate specialty if role is doctor
+  let resolvedSpecialtyName = "";
+  if (input.role === "doctor") {
+    if (!input.specialtyId) {
+      throw new StaffServiceError("Specialty is required when creating a doctor.", 400);
+    }
+
+    const specialtyRow = await db
+      .select({ id: specialty.id, name: specialty.name })
+      .from(specialty)
+      .where(eq(specialty.id, input.specialtyId))
+      .limit(1);
+
+    if (specialtyRow.length === 0) {
+      throw new StaffServiceError("Selected medical specialty does not exist.", 400);
+    }
+    resolvedSpecialtyName = specialtyRow[0].name;
+  }
+
+  const userId = crypto.randomUUID();
+  const accountId = crypto.randomUUID();
+  const rawRandomPassword = randomBytes(24).toString("base64");
+  const hashedPassword = await hashPassword(rawRandomPassword);
+  const now = new Date();
+
+  // Atomic database writes
+  await db.transaction(async (tx) => {
+    await tx.insert(user).values({
+      id: userId,
+      name: input.name,
+      email: normalizedEmail,
+      role: input.role,
+      emailVerified: true,
+      banned: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await tx.insert(account).values({
+      id: accountId,
+      accountId: userId,
+      providerId: "credential",
+      userId,
+      password: hashedPassword,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    if (input.role === "doctor" && input.specialtyId) {
+      await tx.insert(doctor).values({
+        userId,
+        specialtyId: input.specialtyId,
+        isActive: true,
+      });
+    }
+  });
+
+  // Post-commit invitation email dispatch
+  let inviteSent = false;
+  let message = "Staff member created and invitation email dispatched.";
+
+  try {
+    await auth.api.requestPasswordReset({
+      body: {
+        email: normalizedEmail,
+        redirectTo: "/reset-password",
+      },
+    });
+    inviteSent = true;
+  } catch (err) {
+    console.error("Staff invite email dispatch error:", err);
+    message =
+      "Staff account created successfully, but the invite email failed to send. Please use Resend Invite.";
+  }
+
+  const staffItem: StaffListItem = {
+    id: userId,
+    name: input.name,
+    email: normalizedEmail,
+    role: input.role,
+    department: input.role === "doctor" ? resolvedSpecialtyName : input.department || "Operations",
+    active: true,
+    inviteStatus: "pending",
+    specialty: input.specialtyId
+      ? {
+          id: input.specialtyId,
+          name: resolvedSpecialtyName,
+        }
+      : null,
+    createdAt: now.toISOString(),
+  };
+
+  return {
+    staff: staffItem,
+    inviteSent,
+    message,
+  };
+}
+
+/**
+ * Resends the account claim invitation email. Blocked if the staff has already claimed the account.
+ */
+export async function resendStaffInvite(userId: string): Promise<{ success: boolean; message: string }> {
+  const staffRecord = await db
+    .select({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+
+  if (staffRecord.length === 0) {
+    throw new StaffServiceError("Staff member not found.", 404);
+  }
+
+  const staff = staffRecord[0];
+  if (!STAFF_ROLES.includes(staff.role as (typeof STAFF_ROLES)[number])) {
+    throw new StaffServiceError("Target user is not a staff member.", 400);
+  }
+
+  // Check if staff has active sessions
+  const [sessionRow] = await db
+    .select({ count: count() })
+    .from(session)
+    .where(eq(session.userId, userId));
+
+  const sessionCount = Number(sessionRow?.count || 0);
+
+  // Check if staff has already set a new password
+  const [accountRow] = await db
+    .select({
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+    })
+    .from(account)
+    .where(eq(account.userId, userId))
+    .limit(1);
+
+  const isClaimed =
+    sessionCount > 0 ||
+    (accountRow ? accountRow.updatedAt.getTime() > accountRow.createdAt.getTime() : false);
+
+  if (isClaimed) {
+    throw new StaffServiceError(
+      "This staff member has already claimed their account. Account takeover via invite resend is prohibited.",
+      400
+    );
+  }
+
+  await auth.api.requestPasswordReset({
+    body: {
+      email: staff.email,
+      redirectTo: "/reset-password",
+    },
+  });
+
+  return {
+    success: true,
+    message: "Invitation email resent successfully.",
+  };
+}
+
+/**
+ * Toggles a staff member's active status (bans/unbans user, sets doctor.isActive).
+ */
+export async function toggleStaffStatus(
+  userId: string,
+  active: boolean
+): Promise<{ success: boolean; active: boolean }> {
+  const staffRecord = await db
+    .select({
+      id: user.id,
+      role: user.role,
+    })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+
+  if (staffRecord.length === 0) {
+    throw new StaffServiceError("Staff member not found.", 404);
+  }
+
+  const staff = staffRecord[0];
+  if (staff.role === "admin") {
+    throw new StaffServiceError("Administrator accounts cannot be disabled via this interface.", 400);
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(user)
+      .set({
+        banned: !active,
+        updatedAt: new Date(),
+      })
+      .where(eq(user.id, userId));
+
+    if (staff.role === "doctor") {
+      await tx
+        .update(doctor)
+        .set({
+          isActive: active,
+        })
+        .where(eq(doctor.userId, userId));
+    }
+  });
+
+  return {
+    success: true,
+    active,
+  };
+}
+
+/**
+ * Lists all available medical specialties for doctor provisioning.
+ */
+export async function listSpecialties() {
+  return db
+    .select({
+      id: specialty.id,
+      name: specialty.name,
+    })
+    .from(specialty)
+    .orderBy(asc(specialty.name));
+}

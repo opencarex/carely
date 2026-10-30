@@ -1,0 +1,12 @@
+Welcome to {{hospital_name}}
+
+Hello {{staff_name}},
+
+An administrative account has been created for you at {{hospital_name}} with the role: {{staff_role}}.
+
+To complete your onboarding and set your password, visit the link below:
+{{claim_url}}
+
+This activation link will expire in {{expiry_hours}} hours.
+
+If you were not expecting this invitation, please contact your hospital administrator.

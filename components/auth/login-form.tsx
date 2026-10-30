@@ -7,11 +7,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { getDefaultRouteForRole } from "@/lib/config/navigation";
-import { mockCredentials } from "@/lib/mock/auth";
 import { getSafeRedirectUrl } from "@/lib/safe-redirect";
 import type { LoginInput } from "@/lib/schemas/auth";
 import { loginSchema } from "@/lib/schemas/auth";
@@ -40,37 +39,7 @@ function LoginForm({ defaultValues }: { defaultValues: LoginInput }) {
   const onSubmit = async (values: LoginInput) => {
     setLoginError("");
 
-    // 1. Check if input matches prototype mock staff credentials
-    if (
-      values.email === mockCredentials.doctor.email &&
-      values.password === mockCredentials.doctor.password
-    ) {
-      router.push(getRedirectDestination("/doctor"));
-      return;
-    }
-    if (
-      values.email === mockCredentials.nurse.email &&
-      values.password === mockCredentials.nurse.password
-    ) {
-      router.push(getRedirectDestination("/nurse/vitals"));
-      return;
-    }
-    if (
-      values.email === mockCredentials.receptionist.email &&
-      values.password === mockCredentials.receptionist.password
-    ) {
-      router.push(getRedirectDestination("/reception/register"));
-      return;
-    }
-    if (
-      values.email === mockCredentials.pharmacist.email &&
-      values.password === mockCredentials.pharmacist.password
-    ) {
-      router.push(getRedirectDestination("/pharmacy"));
-      return;
-    }
-
-    // 2. Real patient/staff sign-in via Better Auth
+    // Authentic staff & patient sign-in via Better Auth
     try {
       const { data, error } = await authClient.signIn.email({
         email: values.email,

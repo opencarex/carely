@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-//Base environment schema for the running web application.
+
 export const appEnvSchema = z.object({
   DATABASE_URL: z.string().url("DATABASE_URL must be a valid PostgreSQL connection URL"),
   BETTER_AUTH_SECRET: z
@@ -50,7 +50,7 @@ export const seedAdminEnvSchema = appEnvSchema
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
 
-    const invalid = emails.filter((e) => !z.string().email().safeParse(e).success);
+    const invalid = emails.filter((e) => !z.email().safeParse(e).success);
     if (invalid.length > 0) {
       ctx.addIssue({
         code: "custom",

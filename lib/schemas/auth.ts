@@ -19,7 +19,7 @@ export const signupSchema = z
   });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().trim().email("Enter a valid email address"),
+  email: z.email("Enter a valid email address"),
 });
 
 export const newPasswordSchema = z
@@ -88,7 +88,7 @@ export const roleSchema = z.enum([
 ]);
 
 export const mockCredentialSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(1),
   role: roleSchema,
 });

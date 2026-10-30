@@ -81,6 +81,34 @@ async function getResetPasswordOtpEmailTemplates() {
   return { html, txt };
 }
 
+let cachedStaffInviteHtmlTemplate: string | null = null;
+let cachedStaffInviteTxtTemplate: string | null = null;
+
+async function getStaffInviteEmailTemplates() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    cachedStaffInviteHtmlTemplate &&
+    cachedStaffInviteTxtTemplate
+  ) {
+    return { html: cachedStaffInviteHtmlTemplate, txt: cachedStaffInviteTxtTemplate };
+  }
+
+  const htmlPath = path.join(process.cwd(), "templates", "emails", "staff-invite.html");
+  const txtPath = path.join(process.cwd(), "templates", "emails", "staff-invite.txt");
+
+  const [html, txt] = await Promise.all([
+    fs.readFile(htmlPath, "utf-8"),
+    fs.readFile(txtPath, "utf-8"),
+  ]);
+
+  if (process.env.NODE_ENV === "production") {
+    cachedStaffInviteHtmlTemplate = html;
+    cachedStaffInviteTxtTemplate = txt;
+  }
+
+  return { html, txt };
+}
+
 export async function getHospitalName(): Promise<string> {
   const fallback = env.HOSPITAL_NAME || "Carely Hospital";
   try {
@@ -169,6 +197,44 @@ export async function sendPasswordResetOTP({
     from: emailFrom,
     to,
     subject: `Reset your ${hospitalName} password`,
+    text: renderTemplate(txt, tokens),
+    html: renderTemplate(html, tokens, escapeHtml),
+  });
+}
+
+
+export interface SendStaffInviteParams {
+  to: string;
+  name: string;
+  role: string;
+  claimUrl: string;
+  expiryHours?: number;
+}
+
+export async function sendStaffInviteEmail({
+  to,
+  name,
+  role,
+  claimUrl,
+  expiryHours = 24,
+}: SendStaffInviteParams) {
+  const hospitalName = await getHospitalName();
+  const { html, txt } = await getStaffInviteEmailTemplates();
+
+  const tokens: Record<string, string> = {
+    hospital_name: hospitalName,
+    staff_name: name,
+    staff_role: role,
+    claim_url: claimUrl,
+    expiry_hours: String(expiryHours),
+  };
+
+  const emailFrom = env.SMTP_FROM || `"${hospitalName}" <no-reply@carely.local>`;
+
+  return mailer.sendMail({
+    from: emailFrom,
+    to,
+    subject: `Invitation: Set up your ${hospitalName} staff account`,
     text: renderTemplate(txt, tokens),
     html: renderTemplate(html, tokens, escapeHtml),
   });

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff Account Invitation</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f5f9ff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #10234e;
+    }
+    .wrapper {
+      width: 100%;
+      table-layout: fixed;
+      background-color: #f5f9ff;
+      padding: 40px 16px;
+    }
+    .main {
+      background-color: #ffffff;
+      max-width: 540px;
+      margin: 0 auto;
+      border-radius: 14px;
+      border: 1px solid #e2eaf5;
+      overflow: hidden;
+      box-shadow: 0 4px 12px -2px rgba(22, 119, 255, 0.08);
+    }
+    .header {
+      background: linear-gradient(135deg, #1677ff 0%, #0f5fd4 100%);
+      padding: 28px 32px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      color: #ffffff;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .content {
+      padding: 36px 32px;
+      font-size: 15px;
+      line-height: 1.6;
+      color: #384860;
+    }
+    .content h2 {
+      margin-top: 0;
+      color: #10234e;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      text-align: center;
+    }
+    .role-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background-color: #e6f4ff;
+      color: #0958d9;
+      font-weight: 600;
+      font-size: 13px;
+      border-radius: 20px;
+      text-transform: capitalize;
+    }
+    .btn-container {
+      margin: 32px 0 24px 0;
+      text-align: center;
+    }
+    .btn {
+      background: #1677ff;
+      color: #ffffff !important;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 14px 28px;
+      border-radius: 8px;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .link-alt {
+      font-size: 12px;
+      color: #8c9ba5;
+      word-break: break-all;
+      margin-top: 16px;
+    }
+    .expiry {
+      font-size: 13px;
+      color: #6b7c9f;
+      text-align: center;
+      margin-top: 16px;
+    }
+    .footer {
+      border-top: 1px solid #e2eaf5;
+      padding: 20px 32px;
+      font-size: 12px;
+      color: #6b7c9f;
+      text-align: center;
+      background-color: #f7faff;
+    }
+  </style>
+</head>
+<body>
+  <table class="wrapper" role="presentation">
+    <tr>
+      <td>
+        <div class="main">
+          <div class="header">
+            <h1>{{hospital_name}}</h1>
+          </div>
+          <div class="content">
+            <h2>Welcome to the Medical Team</h2>
+            <p>Hello <strong>{{staff_name}}</strong>,</p>
+            <p>
+              An administrative account has been created for you at <strong>{{hospital_name}}</strong> with the role:
+              <span class="role-badge">{{staff_role}}</span>.
+            </p>
+            <p>
+              To complete your onboarding and activate your account, please set your personal password by clicking the button below:
+            </p>
+            <div class="btn-container">
+              <a href="{{claim_url}}" class="btn" target="_blank" rel="noopener noreferrer">
+                Claim Account &amp; Set Password
+              </a>
+            </div>
+            <p class="expiry">
+              This activation link is valid for <strong>{{expiry_hours}} hours</strong>.
+            </p>
+            <p class="link-alt">
+              If the button does not work, copy and paste this URL into your browser:<br />
+              <a href="{{claim_url}}">{{claim_url}}</a>
+            </p>
+          </div>
+          <div class="footer">
+            &copy; {{hospital_name}}. If you were not expecting this invitation, please contact your hospital administrator.
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
