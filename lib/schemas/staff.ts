@@ -39,6 +39,18 @@ export const createStaffSchema = z
       message: "Medical specialty is required when adding a doctor",
       path: ["specialtyId"],
     }
+  )
+  .refine(
+    (data) => {
+      if (data.role !== "doctor" && (!data.department || data.department.trim() === "")) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "Department is required",
+      path: ["department"],
+    }
   );
 
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;

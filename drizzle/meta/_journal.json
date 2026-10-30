@@ -15,6 +15,13 @@
       "when": 1792730864606,
       "tag": "0001_erd_scheduling_channeling",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793381715635,
+      "tag": "0002_add_claimed_at_to_user",
+      "breakpoints": true
     }
   ]
 }

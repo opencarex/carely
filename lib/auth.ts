@@ -11,6 +11,23 @@ import {
   sendStaffInviteEmail,
 } from "@/lib/mail";
 
+async function isAccountClaimed(userId: string): Promise<boolean> {
+  const [userRow] = await db
+    .select({ claimedAt: user.claimedAt })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+
+  if (userRow?.claimedAt) return true;
+
+  const [sessionRow] = await db
+    .select({ count: count() })
+    .from(session)
+    .where(eq(session.userId, userId));
+
+  return Number(sessionRow?.count || 0) > 0;
+}
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -27,24 +44,15 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: true,
     resetPasswordTokenExpiresIn: 86400, // 24 hours globally
+    async onPasswordReset({ user: resetUser }) {
+      await db
+        .update(user)
+        .set({ claimedAt: new Date(), updatedAt: new Date() })
+        .where(eq(user.id, resetUser.id));
+    },
     async sendResetPassword({ user, token }) {
       const userRole = (user as { role?: string })?.role;
-      const [sessionRow] = await db
-        .select({ count: count() })
-        .from(session)
-        .where(eq(session.userId, user.id));
-      const sessionCount = Number(sessionRow?.count || 0);
-
-      const [accountRow] = await db
-        .select({ createdAt: account.createdAt, updatedAt: account.updatedAt })
-        .from(account)
-        .where(eq(account.userId, user.id))
-        .limit(1);
-
-      const isClaimed =
-        sessionCount > 0 ||
-        (accountRow ? accountRow.updatedAt.getTime() > accountRow.createdAt.getTime() : false);
-
+      const isClaimed = await isAccountClaimed(user.id);
       const directClaimUrl = `${env.BETTER_AUTH_URL}/reset-password?token=${token}`;
 
       if (!isClaimed && userRole !== "patient") {

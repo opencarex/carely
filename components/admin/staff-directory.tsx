@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { Loader2, Mail, Plus, UserCheck, UserX } from "lucide-react";
@@ -44,6 +44,7 @@ export function StaffDirectory() {
   const [showAddForm, setShowAddForm] = useState(false);
 
   const [message, setMessage] = useState("");
+  const [inviteWarning, setInviteWarning] = useState("");
   const [error, setError] = useState("");
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
@@ -79,7 +80,7 @@ export function StaffDirectory() {
   }));
 
   // Load initial data from APIs
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const [staffRes, specialtiesRes] = await Promise.all([
@@ -101,11 +102,11 @@ export function StaffDirectory() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const filtered = staff.filter((item) =>
     `${item.name} ${item.email} ${item.department} ${item.role}`
@@ -144,7 +145,16 @@ export function StaffDirectory() {
         return;
       }
 
-      setMessage(data.message || "Staff member created successfully!");
+      // Show a warning banner if the account was created but the invite email failed
+      if (data.inviteSent === false) {
+        setInviteWarning(
+          data.message ||
+            "Staff account created, but the invitation email could not be sent. Use 'Resend Invite' from the directory."
+        );
+      } else {
+        setMessage(data.message || "Staff member created and invitation email sent.");
+      }
+
       setShowAddForm(false);
       reset();
       await loadData();

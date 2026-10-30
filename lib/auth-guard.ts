@@ -14,10 +14,6 @@ export class AuthError extends Error {
 export type AuthSession = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
 export type AuthUser = AuthSession["user"];
 
-/**
- * Ensures the incoming request has an authenticated session.
- * Throws an AuthError (401) if unauthenticated.
- */
 export async function requireAuth(requestHeaders?: Headers): Promise<AuthSession> {
   const session = await auth.api.getSession({
     headers: requestHeaders ?? (await headers()),
@@ -30,29 +26,20 @@ export async function requireAuth(requestHeaders?: Headers): Promise<AuthSession
   return session;
 }
 
-/**
- * Ensures the incoming request has an authenticated session with one of the allowed roles.
- * Optionally accepts incoming Request Headers.
- * Throws an AuthError (401 if unauthenticated, 403 if insufficient privileges).
- */
 export async function requireRole(
-  ...rolesOrHeaders: (string | Headers | undefined)[]
+  roles: string | string[],
+  requestHeaders?: Headers
 ): Promise<AuthSession> {
-  let reqHeaders: Headers | undefined;
-  const roles: string[] = [];
+  const allowedRoles = Array.isArray(roles) ? roles : [roles];
 
-  for (const item of rolesOrHeaders) {
-    if (typeof item === "string") {
-      roles.push(item);
-    } else if (item && typeof item === "object" && "get" in item) {
-      reqHeaders = item as Headers;
-    }
+  if (allowedRoles.length === 0) {
+    throw new Error("requireRole() called with no roles — pass at least one role string.");
   }
 
-  const session = await requireAuth(reqHeaders);
+  const session = await requireAuth(requestHeaders);
   const userRole = session.user.role;
 
-  if (!userRole || !roles.includes(userRole)) {
+  if (!userRole || !allowedRoles.includes(userRole)) {
     throw new AuthError("Forbidden: Insufficient privileges", 403);
   }
 

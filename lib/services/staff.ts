@@ -20,9 +20,23 @@ export class StaffServiceError extends Error {
 
 const STAFF_ROLES = ["doctor", "nurse", "pharmacist", "receptionist"] as const;
 
-/**
- * Lists all registered staff members with their role, specialty, status, and claim state.
- */
+async function isStaffAccountClaimed(userId: string): Promise<boolean> {
+  const [userRow] = await db
+    .select({ claimedAt: user.claimedAt })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+
+  if (userRow?.claimedAt) return true;
+
+  const [sessionRow] = await db
+    .select({ count: count() })
+    .from(session)
+    .where(eq(session.userId, userId));
+
+  return Number(sessionRow?.count || 0) > 0;
+}
+
 export async function listStaffMembers(): Promise<StaffListItem[]> {
   const staffUsers = await db
     .select({
@@ -31,6 +45,7 @@ export async function listStaffMembers(): Promise<StaffListItem[]> {
       email: user.email,
       role: user.role,
       banned: user.banned,
+      claimedAt: user.claimedAt,
       createdAt: user.createdAt,
     })
     .from(user)
@@ -69,27 +84,12 @@ export async function listStaffMembers(): Promise<StaffListItem[]> {
 
   const sessionCountMap = new Map(sessionCounts.map((s) => [s.userId, Number(s.count)]));
 
-  // Fetch account records to check whether password was set/claimed after initial creation
-  const accounts = await db
-    .select({
-      userId: account.userId,
-      createdAt: account.createdAt,
-      updatedAt: account.updatedAt,
-    })
-    .from(account)
-    .where(inArray(account.userId, staffUserIds));
-
-  const accountMap = new Map(accounts.map((a) => [a.userId, a]));
-
   return staffUsers.map((member) => {
     const docProfile = doctorProfileMap.get(member.id);
     const sessions = sessionCountMap.get(member.id) ?? 0;
-    const acc = accountMap.get(member.id);
     const isDoctor = member.role === "doctor";
 
-    const isClaimed =
-      sessions > 0 ||
-      (acc ? acc.updatedAt.getTime() > acc.createdAt.getTime() : false);
+    const isClaimed = member.claimedAt !== null || sessions > 0;
 
     const active = isDoctor
       ? !member.banned && (docProfile?.isActive ?? true)
@@ -124,9 +124,8 @@ export async function listStaffMembers(): Promise<StaffListItem[]> {
   });
 }
 
-/**
- * Atomically provisions a staff user and sends the activation invitation email.
- */
+
+// Atomically provisions a staff user and sends the activation invitation email.
 export async function createStaffMember(input: CreateStaffInput): Promise<{
   staff: StaffListItem;
   inviteSent: boolean;
@@ -247,9 +246,8 @@ export async function createStaffMember(input: CreateStaffInput): Promise<{
   };
 }
 
-/**
- * Resends the account claim invitation email. Blocked if the staff has already claimed the account.
- */
+
+// Resends the account claim invitation email. Blocked if the staff has already claimed the account.
 export async function resendStaffInvite(userId: string): Promise<{ success: boolean; message: string }> {
   const staffRecord = await db
     .select({
@@ -270,27 +268,8 @@ export async function resendStaffInvite(userId: string): Promise<{ success: bool
     throw new StaffServiceError("Target user is not a staff member.", 400);
   }
 
-  // Check if staff has active sessions
-  const [sessionRow] = await db
-    .select({ count: count() })
-    .from(session)
-    .where(eq(session.userId, userId));
-
-  const sessionCount = Number(sessionRow?.count || 0);
-
-  // Check if staff has already set a new password
-  const [accountRow] = await db
-    .select({
-      createdAt: account.createdAt,
-      updatedAt: account.updatedAt,
-    })
-    .from(account)
-    .where(eq(account.userId, userId))
-    .limit(1);
-
-  const isClaimed =
-    sessionCount > 0 ||
-    (accountRow ? accountRow.updatedAt.getTime() > accountRow.createdAt.getTime() : false);
+  // Check whether this staff member has already claimed their account
+  const isClaimed = await isStaffAccountClaimed(userId);
 
   if (isClaimed) {
     throw new StaffServiceError(
@@ -312,9 +291,8 @@ export async function resendStaffInvite(userId: string): Promise<{ success: bool
   };
 }
 
-/**
- * Toggles a staff member's active status (bans/unbans user, sets doctor.isActive).
- */
+
+// Toggles a staff member's active status (bans/unbans user, sets doctor.isActive).
 export async function toggleStaffStatus(
   userId: string,
   active: boolean
@@ -362,9 +340,8 @@ export async function toggleStaffStatus(
   };
 }
 
-/**
- * Lists all available medical specialties for doctor provisioning.
- */
+
+// Lists all available medical specialties for doctor provisioning.
 export async function listSpecialties() {
   return db
     .select({
