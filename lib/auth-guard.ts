@@ -23,6 +23,10 @@ export async function requireAuth(requestHeaders?: Headers): Promise<AuthSession
     throw new AuthError("Unauthorized: Session required", 401);
   }
 
+  if (session.user.banned) {
+    throw new AuthError("Your account is unavailable.", 403);
+  }
+
   return session;
 }
 
@@ -33,7 +37,9 @@ export async function requireRole(
   const allowedRoles = Array.isArray(roles) ? roles : [roles];
 
   if (allowedRoles.length === 0) {
-    throw new Error("requireRole() called with no roles — pass at least one role string.");
+    throw new Error(
+      "requireRole() called with no roles — pass at least one role string."
+    );
   }
 
   const session = await requireAuth(requestHeaders);

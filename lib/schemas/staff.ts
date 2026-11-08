@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-export const staffRoleEnum = z.enum([
-  "doctor",
-  "nurse",
-  "pharmacist",
-  "receptionist",
-]);
+export const staffRoleEnum = z.enum(["doctor", "nurse", "pharmacist", "receptionist"]);
 export type StaffRole = z.infer<typeof staffRoleEnum>;
 
 export const createStaffSchema = z
@@ -30,7 +25,10 @@ export const createStaffSchema = z
   })
   .refine(
     (data) => {
-      if (data.role === "doctor" && (!data.specialtyId || data.specialtyId.trim() === "")) {
+      if (
+        data.role === "doctor" &&
+        (!data.specialtyId || data.specialtyId.trim() === "")
+      ) {
         return false;
       }
       return true;
@@ -55,9 +53,11 @@ export const createStaffSchema = z
 
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;
 
-export const updateStaffStatusSchema = z.object({
-  active: z.boolean(),
-});
+export const updateStaffStatusSchema = z
+  .object({
+    active: z.boolean(),
+  })
+  .strict();
 
 export type UpdateStaffStatusInput = z.infer<typeof updateStaffStatusSchema>;
 

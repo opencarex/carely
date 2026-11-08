@@ -1,3 +1,6 @@
+import { assertActiveActor, type Actor } from "@/lib/services/access-policy";
+import { recordAudit } from "@/lib/services/audit";
+import { staffActions } from "@/lib/audit/actions/staff";
 import { randomBytes } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { asc, count, desc, eq, inArray } from "drizzle-orm";
@@ -124,7 +127,6 @@ export async function listStaffMembers(): Promise<StaffListItem[]> {
   });
 }
 
-
 // Atomically provisions a staff user and sends the activation invitation email.
 export async function createStaffMember(input: CreateStaffInput): Promise<{
   staff: StaffListItem;
@@ -227,7 +229,8 @@ export async function createStaffMember(input: CreateStaffInput): Promise<{
     name: input.name,
     email: normalizedEmail,
     role: input.role,
-    department: input.role === "doctor" ? resolvedSpecialtyName : input.department || "Operations",
+    department:
+      input.role === "doctor" ? resolvedSpecialtyName : input.department || "Operations",
     active: true,
     inviteStatus: "pending",
     specialty: input.specialtyId
@@ -246,9 +249,10 @@ export async function createStaffMember(input: CreateStaffInput): Promise<{
   };
 }
 
-
 // Resends the account claim invitation email. Blocked if the staff has already claimed the account.
-export async function resendStaffInvite(userId: string): Promise<{ success: boolean; message: string }> {
+export async function resendStaffInvite(
+  userId: string
+): Promise<{ success: boolean; message: string }> {
   const staffRecord = await db
     .select({
       id: user.id,
@@ -291,55 +295,58 @@ export async function resendStaffInvite(userId: string): Promise<{ success: bool
   };
 }
 
-
-// Toggles a staff member's active status (bans/unbans user, sets doctor.isActive).
+// Status changes preserve authorship and revoke existing sessions atomically.
 export async function toggleStaffStatus(
   userId: string,
-  active: boolean
+  active: boolean,
+  actor: Actor
 ): Promise<{ success: boolean; active: boolean }> {
-  const staffRecord = await db
-    .select({
-      id: user.id,
-      role: user.role,
-    })
-    .from(user)
-    .where(eq(user.id, userId))
-    .limit(1);
-
-  if (staffRecord.length === 0) {
-    throw new StaffServiceError("Staff member not found.", 404);
-  }
-
-  const staff = staffRecord[0];
-  if (staff.role === "admin") {
-    throw new StaffServiceError("Administrator accounts cannot be disabled via this interface.", 400);
-  }
-
+  if (actor.role !== "admin") throw new StaffServiceError("Forbidden.", 403);
   await db.transaction(async (tx) => {
+    await assertActiveActor(actor, tx);
+    const [staff] = await tx
+      .select({ id: user.id, role: user.role, banned: user.banned })
+      .from(user)
+      .where(eq(user.id, userId))
+      .for("update");
+    if (!staff || !STAFF_ROLES.includes(staff.role as StaffRole)) {
+      throw new StaffServiceError("Staff member not found.", 404);
+    }
+    if (actor.userId === userId) {
+      throw new StaffServiceError("You cannot deactivate your own account.", 400);
+    }
+    // All admin targets are rejected above, including the last active admin.
+    let statusChanged = Boolean(staff.banned) !== !active;
+    if (staff.role === "doctor") {
+      const [profile] = await tx
+        .select({ isActive: doctor.isActive })
+        .from(doctor)
+        .where(eq(doctor.userId, userId))
+        .for("update");
+      if (!profile) throw new StaffServiceError("Doctor profile is missing.", 409);
+      statusChanged ||= profile.isActive !== active;
+    }
     await tx
       .update(user)
-      .set({
-        banned: !active,
-        updatedAt: new Date(),
-      })
+      .set({ banned: !active, updatedAt: new Date() })
       .where(eq(user.id, userId));
-
     if (staff.role === "doctor") {
-      await tx
-        .update(doctor)
-        .set({
-          isActive: active,
-        })
-        .where(eq(doctor.userId, userId));
+      await tx.update(doctor).set({ isActive: active }).where(eq(doctor.userId, userId));
+    }
+    // Also clean up sessions on a repeated deactivation request.
+    if (!active) await tx.delete(session).where(eq(session.userId, userId));
+    if (statusChanged) {
+      await recordAudit(tx, {
+        actorId: actor.userId,
+        action: active ? staffActions.reactivated : staffActions.deactivated,
+        targetType: "user",
+        targetId: userId,
+        metadata: { changedFields: ["active"] },
+      });
     }
   });
-
-  return {
-    success: true,
-    active,
-  };
+  return { success: true, active };
 }
-
 
 // Lists all available medical specialties for doctor provisioning.
 export async function listSpecialties() {

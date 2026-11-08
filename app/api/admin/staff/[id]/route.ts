@@ -1,3 +1,4 @@
+import { ServiceError } from "@/lib/services/service-error";
 import { NextResponse } from "next/server";
 import { AuthError, requireRole } from "@/lib/auth-guard";
 import { updateStaffStatusSchema } from "@/lib/schemas/staff";
@@ -8,7 +9,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireRole("admin", req.headers);
+    const caller = await requireRole("admin", req.headers);
     const { id } = await params;
     const body = await req.json();
 
@@ -23,10 +24,17 @@ export async function PATCH(
       );
     }
 
-    const result = await toggleStaffStatus(id, parsed.data.active);
+    const result = await toggleStaffStatus(id, parsed.data.active, {
+      userId: caller.user.id,
+      role: caller.user.role,
+    });
     return NextResponse.json(result);
   } catch (err: unknown) {
-    if (err instanceof AuthError || err instanceof StaffServiceError) {
+    if (
+      err instanceof AuthError ||
+      err instanceof StaffServiceError ||
+      err instanceof ServiceError
+    ) {
       return NextResponse.json({ error: err.message }, { status: err.statusCode });
     }
     console.error("PATCH /api/admin/staff/[id] error:", err);

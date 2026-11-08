@@ -1,3 +1,4 @@
+import { disabledAuthAdminPaths } from "@/lib/auth-admin-policy";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, emailOTP } from "better-auth/plugins";
@@ -29,6 +30,7 @@ async function isAccountClaimed(userId: string): Promise<boolean> {
 }
 
 export const auth = betterAuth({
+  disabledPaths: disabledAuthAdminPaths,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
