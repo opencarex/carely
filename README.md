@@ -107,7 +107,7 @@ Queue updates use the browser's native `fetch` API through a small custom React 
 ### Clinical Records
 
 - Doctor-authored clinical notes
-- Allergies and relevant clinical information
+- Relevant clinical information from encounters, notes and prescriptions
 - Visit records with author and timestamp
 - No generated summaries or automated clinical recommendations
 
