@@ -9,6 +9,16 @@ import * as patientSchema from "./schema/patient";
 import * as settingsSchema from "./schema/settings";
 import * as specialtySchema from "./schema/specialty";
 
+import * as queueSchema from "./schema/queue-entry";
+import * as encounterSchema from "./schema/encounter";
+import * as vitalsSchema from "./schema/vitals";
+import * as preliminaryNoteSchema from "./schema/preliminary-note";
+import * as clinicalNoteSchema from "./schema/clinical-note";
+import * as medicineSchema from "./schema/medicine";
+import * as prescriptionSchema from "./schema/prescription";
+import * as prescriptionItemSchema from "./schema/prescription-item";
+import * as auditSchema from "./schema/audit-log";
+
 const activeConnectionString =
   env.DATABASE_URL || "postgresql://carely_user:carely_password@localhost:5432/carely_db";
 
@@ -35,6 +45,15 @@ export const db = drizzle(conn, {
     ...doctorSchema,
     ...availabilitySchema,
     ...appointmentSchema,
+    ...queueSchema,
+    ...encounterSchema,
+    ...vitalsSchema,
+    ...preliminaryNoteSchema,
+    ...clinicalNoteSchema,
+    ...medicineSchema,
+    ...prescriptionSchema,
+    ...prescriptionItemSchema,
+    ...auditSchema,
   },
 });
 
@@ -46,4 +65,13 @@ export {
   patientSchema,
   settingsSchema,
   specialtySchema,
+  queueSchema,
+  encounterSchema,
+  vitalsSchema,
+  preliminaryNoteSchema,
+  clinicalNoteSchema,
+  medicineSchema,
+  prescriptionSchema,
+  prescriptionItemSchema,
+  auditSchema,
 };
