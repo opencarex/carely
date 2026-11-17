@@ -338,17 +338,20 @@ The exact script names should follow the root `package.json` if they differ from
 
 ## Docker Deployment
 
-Build and start the reference deployment with:
+Copy `.env.docker.example` to `.env.docker` and configure its credentials and URLs. Then build and start the reference deployment:
 
 ```bash
-docker compose up --build
+docker compose --env-file .env.docker up -d --build app
+docker compose --env-file .env.docker --profile tools run --rm seed-admin
 ```
 
-Stop it with:
+Stop it while keeping database data:
 
 ```bash
-docker compose down
+docker compose --env-file .env.docker down
 ```
+
+See [deployment instructions](docs/deployment.md) for configuration, migrations and the fresh-install checklist, and [backup/restore instructions](docs/backup-restore.md) for the rehearsal. Container execution and restore verification remain pending.
 
 Production deployments must use strong secrets, HTTPS and a protected PostgreSQL connection.
 
