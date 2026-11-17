@@ -19,6 +19,10 @@ import * as prescriptionSchema from "./schema/prescription";
 import * as prescriptionItemSchema from "./schema/prescription-item";
 import * as auditSchema from "./schema/audit-log";
 
+import * as stockBatchSchema from "./schema/stock-batch";
+import * as dispenseRecordSchema from "./schema/dispense-record";
+import * as visitReasonSchema from "./schema/visit-reason";
+
 const activeConnectionString =
   env.DATABASE_URL || "postgresql://carely_user:carely_password@localhost:5432/carely_db";
 
@@ -54,6 +58,9 @@ export const db = drizzle(conn, {
     ...prescriptionSchema,
     ...prescriptionItemSchema,
     ...auditSchema,
+    ...stockBatchSchema,
+    ...dispenseRecordSchema,
+    ...visitReasonSchema,
   },
 });
 
@@ -74,4 +81,7 @@ export {
   prescriptionSchema,
   prescriptionItemSchema,
   auditSchema,
+  stockBatchSchema,
+  dispenseRecordSchema,
+  visitReasonSchema,
 };

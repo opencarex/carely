@@ -1,8 +1,12 @@
 import { ServiceError } from "@/lib/services/service-error";
 import { NextResponse } from "next/server";
 import { AuthError, requireRole } from "@/lib/auth-guard";
-import { updateStaffStatusSchema } from "@/lib/schemas/staff";
-import { StaffServiceError, toggleStaffStatus } from "@/lib/services/staff";
+import { updateStaffStatusSchema, updateStaffDetailsSchema } from "@/lib/schemas/staff";
+import {
+  StaffServiceError,
+  toggleStaffStatus,
+  updateStaffMember,
+} from "@/lib/services/staff";
 
 export async function PATCH(
   req: Request,
@@ -13,7 +17,11 @@ export async function PATCH(
     const { id } = await params;
     const body = await req.json();
 
-    const parsed = updateStaffStatusSchema.safeParse(body);
+    const parsed = (
+      body && typeof body === "object" && "active" in body
+        ? updateStaffStatusSchema
+        : updateStaffDetailsSchema
+    ).safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
         {
@@ -24,10 +32,11 @@ export async function PATCH(
       );
     }
 
-    const result = await toggleStaffStatus(id, parsed.data.active, {
-      userId: caller.user.id,
-      role: caller.user.role,
-    });
+    const actor = { userId: caller.user.id, role: caller.user.role };
+    const result =
+      "active" in parsed.data
+        ? await toggleStaffStatus(id, parsed.data.active, actor)
+        : await updateStaffMember(id, parsed.data, actor);
     return NextResponse.json(result);
   } catch (err: unknown) {
     if (
@@ -37,7 +46,9 @@ export async function PATCH(
     ) {
       return NextResponse.json({ error: err.message }, { status: err.statusCode });
     }
-    console.error("PATCH /api/admin/staff/[id] error:", err);
+    if (err instanceof SyntaxError)
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    console.error("PATCH /api/admin/staff/[id] failed.");
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

@@ -336,6 +336,12 @@ The exact script names should follow the root `package.json` if they differ from
 
 ---
 
+## Testing
+
+Run the 16 focused behavior checks with `pnpm test`; no database or Docker is required. See [testing.md](docs/testing.md) for the purpose and limits of each test. Teammates run temporary feature tests, record passing results and remove those temporary files; the 16 core tests remain.
+
+---
+
 ## Docker Deployment
 
 Copy `.env.docker.example` to `.env.docker` and configure its credentials and URLs. Then build and start the reference deployment:

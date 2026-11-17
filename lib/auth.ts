@@ -1,10 +1,10 @@
 import { disabledAuthAdminPaths } from "@/lib/auth-admin-policy";
 import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, emailOTP } from "better-auth/plugins";
 import { count, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { account, session, user, verification } from "@/lib/db/schema/auth";
+import { session, user } from "@/lib/db/schema/auth";
+import { auditedAuthAdapter, authAuditHooks } from "@/lib/services/auth-audit";
 import { env } from "@/lib/env";
 import {
   sendPatientVerificationOTP,
@@ -31,15 +31,8 @@ async function isAccountClaimed(userId: string): Promise<boolean> {
 
 export const auth = betterAuth({
   disabledPaths: disabledAuthAdminPaths,
-  database: drizzleAdapter(db, {
-    provider: "pg",
-    schema: {
-      user,
-      session,
-      account,
-      verification,
-    },
-  }),
+  database: auditedAuthAdapter,
+  hooks: authAuditHooks,
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
   emailAndPassword: {

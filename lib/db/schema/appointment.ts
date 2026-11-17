@@ -11,6 +11,7 @@ import {
 import { user } from "./auth";
 import { doctor } from "./doctor";
 import { patient } from "./patient";
+import { visitReason } from "./visit-reason";
 
 export const appointment = pgTable(
   "appointment",
@@ -22,7 +23,9 @@ export const appointment = pgTable(
     doctorId: uuid("doctor_id")
       .notNull()
       .references(() => doctor.id, { onDelete: "restrict" }),
-    visitReasonId: uuid("visit_reason_id"),
+    visitReasonId: uuid("visit_reason_id").references(() => visitReason.id, {
+      onDelete: "restrict",
+    }),
     appointmentDate: date("appointment_date", { mode: "string" }).notNull(),
     appointmentNo: integer("appointment_no").notNull(),
     status: text("status").default("booked").notNull(), // 'booked' | 'cancelled' | 'completed'

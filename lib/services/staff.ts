@@ -9,6 +9,10 @@ import { db } from "@/lib/db";
 import { account, session, user } from "@/lib/db/schema/auth";
 import { doctor } from "@/lib/db/schema/doctor";
 import { specialty } from "@/lib/db/schema/specialty";
+import {
+  updateStaffDetailsSchema,
+  type UpdateStaffDetailsInput,
+} from "@/lib/schemas/staff";
 import type { CreateStaffInput, StaffListItem, StaffRole } from "@/lib/schemas/staff";
 
 export class StaffServiceError extends Error {
@@ -128,11 +132,15 @@ export async function listStaffMembers(): Promise<StaffListItem[]> {
 }
 
 // Atomically provisions a staff user and sends the activation invitation email.
-export async function createStaffMember(input: CreateStaffInput): Promise<{
+export async function createStaffMember(
+  input: CreateStaffInput,
+  actor: Actor
+): Promise<{
   staff: StaffListItem;
   inviteSent: boolean;
   message: string;
 }> {
+  if (actor.role !== "admin") throw new StaffServiceError("Forbidden.", 403);
   const normalizedEmail = input.email.trim().toLowerCase();
 
   // Check for existing user with identical email
@@ -176,6 +184,7 @@ export async function createStaffMember(input: CreateStaffInput): Promise<{
 
   // Atomic database writes
   await db.transaction(async (tx) => {
+    await assertActiveActor(actor, tx);
     await tx.insert(user).values({
       id: userId,
       name: input.name,
@@ -204,6 +213,13 @@ export async function createStaffMember(input: CreateStaffInput): Promise<{
         isActive: true,
       });
     }
+    await recordAudit(tx, {
+      actorId: actor.userId,
+      action: staffActions.created,
+      targetType: "user",
+      targetId: userId,
+      metadata: { toRole: input.role },
+    });
   });
 
   // Post-commit invitation email dispatch
@@ -218,8 +234,8 @@ export async function createStaffMember(input: CreateStaffInput): Promise<{
       },
     });
     inviteSent = true;
-  } catch (err) {
-    console.error("Staff invite email dispatch error:", err);
+  } catch {
+    console.error("Staff invite email dispatch failed.");
     message =
       "Staff account created successfully, but the invite email failed to send. Please use Resend Invite.";
   }
@@ -357,4 +373,102 @@ export async function listSpecialties() {
     })
     .from(specialty)
     .orderBy(asc(specialty.name));
+}
+
+// Preserve doctor rows and historical authorship when changing roles. The doctor
+// specialty endpoint remains owned by the admin-config track.
+export async function updateStaffMember(
+  userId: string,
+  body: UpdateStaffDetailsInput,
+  actor: Actor
+): Promise<{ success: true }> {
+  if (actor.role !== "admin") throw new StaffServiceError("Forbidden.", 403);
+  const input = updateStaffDetailsSchema.parse(body);
+  await db.transaction(async (tx) => {
+    await assertActiveActor(actor, tx);
+    const [staff] = await tx.select().from(user).where(eq(user.id, userId)).for("update");
+    if (!staff || !STAFF_ROLES.includes(staff.role as StaffRole)) {
+      throw new StaffServiceError("Staff member not found.", 404);
+    }
+    const roleChanged = input.role !== undefined && input.role !== staff.role;
+    const nameChanged = input.name !== undefined && input.name !== staff.name;
+    if (input.specialtyId && !(roleChanged && input.role === "doctor")) {
+      throw new StaffServiceError(
+        "A specialty is only accepted when changing to doctor.",
+        400
+      );
+    }
+    if (!roleChanged && !nameChanged) return;
+    if (roleChanged && (staff.role === "doctor" || input.role === "doctor")) {
+      const [profile] = await tx
+        .select()
+        .from(doctor)
+        .where(eq(doctor.userId, userId))
+        .for("update");
+      if (input.role === "doctor") {
+        if (profile) {
+          if (input.specialtyId && input.specialtyId !== profile.specialtyId) {
+            throw new StaffServiceError(
+              "Change an existing doctor's specialty through doctor configuration.",
+              409
+            );
+          }
+          await tx
+            .update(doctor)
+            .set({ isActive: !staff.banned })
+            .where(eq(doctor.id, profile.id));
+        } else {
+          if (!input.specialtyId)
+            throw new StaffServiceError("A specialty is required for a new doctor.", 400);
+          const [selected] = await tx
+            .select({ id: specialty.id })
+            .from(specialty)
+            .where(eq(specialty.id, input.specialtyId))
+            .limit(1);
+          if (!selected)
+            throw new StaffServiceError(
+              "Selected medical specialty does not exist.",
+              400
+            );
+          await tx
+            .insert(doctor)
+            .values({ userId, specialtyId: input.specialtyId, isActive: !staff.banned });
+        }
+      } else if (profile) {
+        await tx.update(doctor).set({ isActive: false }).where(eq(doctor.id, profile.id));
+      }
+    }
+    await tx
+      .update(user)
+      .set({
+        ...(nameChanged ? { name: input.name } : {}),
+        ...(roleChanged ? { role: input.role } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(user.id, userId));
+    if (nameChanged) {
+      await recordAudit(tx, {
+        actorId: actor.userId,
+        action: staffActions.updated,
+        targetType: "user",
+        targetId: userId,
+        metadata: { changedFields: ["name"] },
+      });
+    }
+    if (roleChanged) {
+      await tx.delete(session).where(eq(session.userId, userId));
+      await recordAudit(tx, {
+        actorId: actor.userId,
+        action: staffActions.roleChanged,
+        targetType: "user",
+        targetId: userId,
+        metadata: {
+          changedFields: ["role"],
+          fromRole: staff.role as StaffRole,
+          toRole: input.role,
+        },
+      });
+    }
+  });
+  return { success: true };
 }

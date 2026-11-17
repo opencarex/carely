@@ -23,6 +23,7 @@ export const createStaffSchema = z
       .optional()
       .or(z.literal("")),
   })
+  .strict()
   .refine(
     (data) => {
       if (
@@ -75,3 +76,16 @@ export interface StaffListItem {
   } | null;
   createdAt: string;
 }
+
+// Email and existing doctor specialty changes have separate ownership/workflows.
+export const updateStaffDetailsSchema = z
+  .object({
+    name: z.string().trim().min(2).max(120).optional(),
+    role: staffRoleEnum.optional(),
+    specialtyId: z.uuid().optional(),
+  })
+  .strict()
+  .refine((input) => input.name !== undefined || input.role !== undefined, {
+    message: "Provide a name or role to update",
+  });
+export type UpdateStaffDetailsInput = z.infer<typeof updateStaffDetailsSchema>;

@@ -1,6 +1,8 @@
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { index, pgEnum, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
 import { doctor } from "./doctor";
 import { encounter } from "./encounter";
+export const prescriptionStatus = pgEnum("prescription_status", ["issued", "dispensed"]);
+
 export const prescription = pgTable(
   "prescription",
   {
@@ -11,7 +13,7 @@ export const prescription = pgTable(
     doctorId: uuid("doctor_id")
       .notNull()
       .references(() => doctor.id, { onDelete: "restrict" }),
-    status: text("status").default("issued").notNull(),
+    status: prescriptionStatus("status").default("issued").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("prescription_encounter_idx").on(t.encounterId, t.createdAt)]

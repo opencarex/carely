@@ -17,6 +17,7 @@ const status = z.enum([
   "booked",
   "cancelled",
   "issued",
+  "dispensed",
 ]);
 // Only structural metadata is accepted. Never accept free text or patient values.
 export const auditMetadataSchema = z
@@ -25,6 +26,14 @@ export const auditMetadataSchema = z
       .array(
         z.enum([
           "name",
+          "hospitalName",
+          "email",
+          "form",
+          "strength",
+          "isActive",
+          "batchNo",
+          "expiryDate",
+          "quantityOnHand",
           "fullName",
           "phone",
           "dateOfBirth",
@@ -57,6 +66,8 @@ export const auditMetadataSchema = z
     toRole: role.optional(),
     fromStatus: status.optional(),
     toStatus: status.optional(),
+    medicineId: z.uuid().optional(),
+    quantity: z.number().int().nonnegative().max(2147483647).optional(),
     itemCount: z.number().int().nonnegative().max(1000).optional(),
   })
   .strict();
@@ -78,6 +89,13 @@ export const auditEventSchema = z
       "clinical_note",
       "prescription",
       "session",
+      "medicine",
+      "stock_batch",
+      "dispense_record",
+      "specialty",
+      "doctor",
+      "visit_reason",
+      "hospital_settings",
     ]),
     targetId: z.string().min(1).max(128),
     metadata: auditMetadataSchema.default({}),

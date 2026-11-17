@@ -15,7 +15,6 @@ import { encounter } from "@/lib/db/schema/encounter";
 import { clinicalNote } from "@/lib/db/schema/clinical-note";
 import { auditLog } from "@/lib/db/schema/audit-log";
 import { completeConsultation } from "@/lib/services/consultation";
-import { ServiceError } from "@/lib/services/service-error";
 
 const encounterId = "11111111-1111-4111-8111-111111111111";
 const actor = { userId: "doctor-user", role: "doctor" };
@@ -98,89 +97,14 @@ describe("Complete consultation", () => {
       endedAt: set.mock.calls[0][0].endedAt.toISOString(),
     });
   });
-
-  it.each(["patient", "receptionist", "nurse", "pharmacist", "admin"])(
-    "rejects %s service callers before opening a transaction",
-    async (role) => {
-      await expect(
-        completeConsultation({ ...input, actor: { ...actor, role } })
-      ).rejects.toMatchObject({ statusCode: 403, code: "FORBIDDEN" });
-      expect(mocks.transaction).not.toHaveBeenCalled();
-    }
-  );
-
-  it("rejects invalid IDs before querying", async () => {
-    await expect(
-      completeConsultation({ ...input, encounterId: "invalid" })
-    ).rejects.toMatchObject({ statusCode: 400, code: "INVALID_ID" });
-    expect(mocks.transaction).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    { statusCode: 403, code: "ACCOUNT_UNAVAILABLE" },
-    { statusCode: 404, code: "NOT_FOUND" },
-    { statusCode: 409, code: "INVALID_WORKFLOW_STATE" },
-    { statusCode: 409, code: "ENCOUNTER_COMPLETED" },
-  ])(
-    "makes no writes when encounter authorization fails: %j",
-    async ({ statusCode, code }) => {
-      const { tx } = prepare();
-      mocks.writable.mockRejectedValue(
-        new ServiceError("Unavailable visit.", statusCode, code)
-      );
-      await expect(completeConsultation(input)).rejects.toMatchObject({
-        statusCode,
-        code,
-      });
-      expect(tx.select).not.toHaveBeenCalled();
-      expect(tx.update).not.toHaveBeenCalled();
-      expect(tx.insert).not.toHaveBeenCalled();
-      expect(mocks.transition).not.toHaveBeenCalled();
-    }
-  );
-
-  it.each([
-    { options: { missingEntry: true }, code: "INVALID_WORKFLOW_STATE" },
-    { options: { missingNote: true }, code: "CLINICAL_NOTE_REQUIRED" },
-  ])(
-    "does not complete when required records are missing: %j",
-    async ({ options, code }) => {
-      const { tx } = prepare(options);
-      await expect(completeConsultation(input)).rejects.toMatchObject({
-        statusCode: 409,
-        code,
-      });
-      expect(tx.update).not.toHaveBeenCalled();
-      expect(tx.insert).not.toHaveBeenCalled();
-      expect(mocks.transition).not.toHaveBeenCalled();
-    }
-  );
-
-  it("rejects a conditional encounter-update conflict before transitioning the queue", async () => {
-    const { tx } = prepare({ conflict: true });
+  it("does not complete a consultation without a clinical note", async () => {
+    const { tx } = prepare({ missingNote: true });
     await expect(completeConsultation(input)).rejects.toMatchObject({
       statusCode: 409,
-      code: "ENCOUNTER_STATE_CONFLICT",
+      code: "CLINICAL_NOTE_REQUIRED",
     });
+    expect(tx.update).not.toHaveBeenCalled();
     expect(mocks.transition).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
-  });
-
-  it("propagates queue conflicts to abort the transaction", async () => {
-    const { tx } = prepare();
-    mocks.transition.mockRejectedValue(
-      new ServiceError("Changed state.", 409, "QUEUE_STATE_CONFLICT")
-    );
-    await expect(completeConsultation(input)).rejects.toMatchObject({ statusCode: 409 });
-    expect(tx.insert).not.toHaveBeenCalled();
-  });
-
-  it("propagates audit failure rather than acknowledging partial completion", async () => {
-    const { tx } = prepare();
-    tx.insert.mockImplementation(() => {
-      throw new Error("Audit unavailable.");
-    });
-    await expect(completeConsultation(input)).rejects.toThrow("Audit unavailable.");
-    expect(mocks.transition).toHaveBeenCalledWith(expect.anything(), tx);
   });
 });

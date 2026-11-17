@@ -17,9 +17,10 @@ export const prescriptionItem = pgTable(
     prescriptionId: uuid("prescription_id")
       .notNull()
       .references(() => prescription.id, { onDelete: "restrict" }),
-    medicineId: uuid("medicine_id")
-      .notNull()
-      .references(() => medicine.id, { onDelete: "restrict" }),
+    medicineId: uuid("medicine_id").references(() => medicine.id, {
+      onDelete: "restrict",
+    }),
+    medicineName: text("medicine_name"),
     dosage: text("dosage").notNull(),
     frequency: text("frequency").notNull(),
     durationDays: smallint("duration_days").notNull(),
@@ -27,6 +28,10 @@ export const prescriptionItem = pgTable(
     instructions: text("instructions"),
   },
   (t) => [
+    check(
+      "prescription_item_medicine_source_check",
+      sql`(${t.medicineId} IS NOT NULL) <> (${t.medicineName} IS NOT NULL)`
+    ),
     check(
       "prescription_item_positive_check",
       sql`${t.durationDays} > 0 and ${t.quantity} > 0`

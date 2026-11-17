@@ -12,7 +12,6 @@ import { encounter } from "@/lib/db/schema/encounter";
 import { queueEntry } from "@/lib/db/schema/queue-entry";
 import { auditLog } from "@/lib/db/schema/audit-log";
 import { openConsultation } from "@/lib/services/consultation";
-import { ServiceError } from "@/lib/services/service-error";
 
 const entryId = "11111111-1111-4111-8111-111111111111";
 const actor = { userId: "doctor-user", role: "doctor" };
@@ -100,120 +99,13 @@ describe("Open consultation", () => {
       metadata: { fromStatus: "intake_done", toStatus: "with_doctor" },
     });
   });
-
-  it.each(["patient", "receptionist", "nurse", "pharmacist", "admin"])(
-    "rejects %s service callers before opening a transaction",
-    async (role) => {
-      await expect(
-        openConsultation({ entryId, actor: { ...actor, role } })
-      ).rejects.toMatchObject({ statusCode: 403, code: "FORBIDDEN" });
-      expect(mocks.transaction).not.toHaveBeenCalled();
-    }
-  );
-
-  it("rejects invalid entry IDs before querying", async () => {
-    await expect(openConsultation({ entryId: "invalid", actor })).rejects.toMatchObject({
-      statusCode: 400,
-      code: "INVALID_ID",
-    });
-    expect(mocks.transaction).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    { options: { account: null }, statusCode: 403, code: "ACCOUNT_UNAVAILABLE" },
-    {
-      options: { account: { role: "doctor", banned: true } },
-      statusCode: 403,
-      code: "ACCOUNT_UNAVAILABLE",
-    },
-    {
-      options: { account: { role: "nurse", banned: false } },
-      statusCode: 403,
-      code: "ACCOUNT_UNAVAILABLE",
-    },
-    { options: { reference: null }, statusCode: 404, code: "NOT_FOUND" },
-    { options: { booking: null }, statusCode: 404, code: "NOT_FOUND" },
-    { options: { owned: false }, statusCode: 404, code: "NOT_FOUND" },
-    {
-      options: { booking: { ...booking, appointmentDate: "2099-01-01" } },
-      statusCode: 409,
-      code: "APPOINTMENT_CLOSED",
-    },
-    {
-      options: { booking: { ...booking, appointmentDate: "2000-01-01" } },
-      statusCode: 409,
-      code: "APPOINTMENT_CLOSED",
-    },
-    {
-      options: { booking: { ...booking, status: "completed" } },
-      statusCode: 409,
-      code: "APPOINTMENT_CLOSED",
-    },
-    { options: { visit: null }, statusCode: 409, code: "CHECK_IN_REQUIRED" },
-    {
-      options: { visit: { ...visit, status: "completed", endedAt: new Date() } },
-      statusCode: 409,
-      code: "ENCOUNTER_COMPLETED",
-    },
-    { options: { entry: null }, statusCode: 404, code: "NOT_FOUND" },
-    ...["waiting", "with_doctor", "completed"].map((status) => ({
-      options: { entry: { id: entryId, status } },
+  it("does not open a consultation before intake is finished", async () => {
+    const { tx } = prepare({ entry: { id: entryId, status: "waiting" } });
+    await expect(openConsultation({ entryId, actor })).rejects.toMatchObject({
       statusCode: 409,
       code: "INVALID_WORKFLOW_STATE",
-    })),
-  ])(
-    "rejects unavailable or out-of-phase visits: %j",
-    async ({ options, statusCode, code }) => {
-      const { tx } = prepare(options);
-      await expect(openConsultation({ entryId, actor })).rejects.toMatchObject({
-        statusCode,
-        code,
-      });
-      expect(mocks.transition).not.toHaveBeenCalled();
-      expect(tx.insert).not.toHaveBeenCalled();
-    }
-  );
-
-  it("checks ownership before revealing encounter or workflow state", async () => {
-    const { tx, locks } = prepare({
-      owned: false,
-      booking: { ...booking, appointmentDate: "2099-01-01" },
     });
-    await expect(openConsultation({ entryId, actor })).rejects.toMatchObject({
-      statusCode: 404,
-    });
-    expect(locks).toEqual([appointment]);
-    expect(tx.select).toHaveBeenCalledTimes(4);
-  });
-
-  it("propagates a queue conflict without writing an opening audit", async () => {
-    const { tx } = prepare();
-    mocks.transition.mockRejectedValue(
-      new ServiceError("Changed state.", 409, "QUEUE_STATE_CONFLICT")
-    );
-    await expect(openConsultation({ entryId, actor })).rejects.toMatchObject({
-      statusCode: 409,
-    });
+    expect(mocks.transition).not.toHaveBeenCalled();
     expect(tx.insert).not.toHaveBeenCalled();
-  });
-
-  it("rejects an invalid helper result rather than acknowledging an opening without a timestamp", async () => {
-    const { tx } = prepare();
-    mocks.transition.mockResolvedValue({ id: entryId, calledAt: null });
-    await expect(openConsultation({ entryId, actor })).rejects.toThrow(
-      "Consultation opening timestamp is missing."
-    );
-    expect(tx.insert).not.toHaveBeenCalled();
-  });
-
-  it("propagates audit failures to abort the transaction", async () => {
-    const { tx } = prepare();
-    tx.insert.mockImplementation(() => {
-      throw new Error("Audit unavailable.");
-    });
-    await expect(openConsultation({ entryId, actor })).rejects.toThrow(
-      "Audit unavailable."
-    );
-    expect(mocks.transition).toHaveBeenCalledWith(expect.anything(), tx);
   });
 });

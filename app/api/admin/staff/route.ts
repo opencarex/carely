@@ -1,3 +1,4 @@
+import { ServiceError } from "@/lib/services/service-error";
 import { NextResponse } from "next/server";
 import { AuthError, requireRole } from "@/lib/auth-guard";
 import { createStaffSchema } from "@/lib/schemas/staff";
@@ -13,7 +14,11 @@ export async function GET(req: Request) {
     const staff = await listStaffMembers();
     return NextResponse.json({ staff });
   } catch (err: unknown) {
-    if (err instanceof AuthError || err instanceof StaffServiceError) {
+    if (
+      err instanceof AuthError ||
+      err instanceof StaffServiceError ||
+      err instanceof ServiceError
+    ) {
       return NextResponse.json({ error: err.message }, { status: err.statusCode });
     }
     console.error("GET /api/admin/staff error:", err);
@@ -23,7 +28,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    await requireRole("admin", req.headers);
+    const caller = await requireRole("admin", req.headers);
     const body = await req.json();
 
     const parsed = createStaffSchema.safeParse(body);
@@ -37,13 +42,22 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await createStaffMember(parsed.data);
+    const result = await createStaffMember(parsed.data, {
+      userId: caller.user.id,
+      role: caller.user.role,
+    });
     return NextResponse.json(result, { status: 201 });
   } catch (err: unknown) {
-    if (err instanceof AuthError || err instanceof StaffServiceError) {
+    if (
+      err instanceof AuthError ||
+      err instanceof StaffServiceError ||
+      err instanceof ServiceError
+    ) {
       return NextResponse.json({ error: err.message }, { status: err.statusCode });
     }
-    console.error("POST /api/admin/staff error:", err);
+    if (err instanceof SyntaxError)
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    console.error("POST /api/admin/staff failed.");
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

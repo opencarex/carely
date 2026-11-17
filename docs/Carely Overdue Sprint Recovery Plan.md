@@ -1,249 +1,257 @@
-# Carely: Overdue Sprint Recovery Plan (Queue, Clinical and Staff Admin)
+# Carely: Sprint 5 and 6 Recovery Plan (Pharmacy, Doctor Finder, Audit and Release)
 
-Prepared 8 Nov 2026 | Sprint 4, Queue and Clinical (ended 1 Nov 2026, still marked active in Jira) | Hard date for audit integration: 15 Nov 2026 (SCRUM-171)
+Prepared 16 Nov 2026 | Sprint 5, Pharmacy and Finish, and Sprint 6, UAT and Release | Sprints 1 to 4 are Done | The 15 Nov feature freeze in the Jira descriptions has already passed, so this plan replaces it
 
-Sprint goal (from Jira): patient check-in, queue, nurse intake, clinical notes and prescription creation work with role permissions.
+Sprint goal: pharmacy stock and dispensing work for real, patients can find a doctor by reason for visit, admins can configure the system and review audit records, and the project can be deployed, verified and demonstrated.
 
-## 1. Sprint snapshot
+## 1. Snapshot
 
-23 issues are in the sprint: 9 are Done, SCRUM-160, 162 and 188 are being closed with a hardening follow-up, and 11 are open.
+19 issues are open: 13 in Sprint 5 and 6 in Sprint 6. Only SCRUM-171 is In Progress and nobody is assigned to anything. SCRUM-175 (password reset and staff first-password setup) already exists in the code, so it is not a task: close it as Done after one manual run (see section 9). After the merges below there are 14 work items.
 
-Done: SCRUM-132, 133, 135, 138, 139, 140, 163, 187, 190. Closing with a follow-up: SCRUM-160, 162, 188 (the happy paths work, the guards and audit do not).
+Jira housekeeping before kickoff (do in the board):
 
-| Key       | Open story                                               | Owner                                            |
-| --------- | -------------------------------------------------------- | ------------------------------------------------ |
-| SCRUM-141 | Staff can check in patients and manage the queue         | Teammate 1                                       |
-| SCRUM-142 | Patient can view queue status and position               | Teammate 1                                       |
-| SCRUM-134 | Authorized users can update permitted patient details    | Teammate 1                                       |
-| SCRUM-145 | Nurse can view intake queue and record patient intake    | Teammate 2                                       |
-| SCRUM-144 | Doctor can complete a consultation                       | Teammate 2                                       |
-| SCRUM-191 | Verify queue-to-consultation workflow                    | Teammate 2 (last)                                |
-| SCRUM-146 | Doctor can record clinical notes                         | Teammate 3                                       |
-| SCRUM-148 | Doctor can review clinical information and visit history | Teammate 3                                       |
-| SCRUM-150 | Doctor can create a prescription                         | Teammate 3                                       |
-| SCRUM-161 | Admin can update staff details                           | You                                              |
-| SCRUM-171 | System records important audit events                    | You, with every teammate adding their own events |
+- Merge SCRUM-158 into SCRUM-155. Stock levels and stock management are the same screen.
+- Merge SCRUM-169 into SCRUM-168. Specialties and reason mapping are one admin area.
+- Merge SCRUM-192 and SCRUM-195 into SCRUM-194. One final verification and fixes task.
+- Shrink SCRUM-196 to one documented backup and restore run.
+- Keep SCRUM-189 but limit it to the four fields that already exist: hospital name, address, phone, email.
 
-Verification of the staff stories (agent report, 8 Nov): the happy paths work. The gaps: no audit table or helper exists anywhere, deactivated users keep working because the auth guard ignores banned and sessions are not revoked, Better Auth admin endpoints under /api/auth/admin bypass the custom rules, and nothing edits doctor fields for SCRUM-161. All of it is in your task list in section 3.
+| Key | Work item | Owner |
+| --- | --- | --- |
+| SCRUM-171 | Audit events: close the gaps | You, with every teammate adding their own events |
+| SCRUM-173 | Docker Compose deployment | You (late) |
+| SCRUM-196 | Backup and restore, one run | You (late) |
+| (no key) | ~~Test deletion and docs/testing.md~~ - 16 core tests kept; temporary feature verification pending | You |
+| SCRUM-155 (+158) | Medicine catalogue and stock | Teammate 1 |
+| SCRUM-157 | Dispense prescriptions | Teammate 1 |
+| SCRUM-151, 152 | Prescription views: check and finish, plus medicines typed by the doctor (P4) | Teammate 1 |
+| SCRUM-168 (+169) | Specialties and reason-to-specialty mapping | Teammate 2 |
+| SCRUM-170 | Patient finds a doctor by reason | Teammate 2 |
+| SCRUM-189 | Basic hospital settings | Teammate 2 |
+| SCRUM-172 | Admin audit screen | Teammate 3 |
+| SCRUM-197 | SRS, diagrams, user guides | Teammate 3 |
+| SCRUM-198 | Demo data, presentation, viva rehearsal | Teammate 3 |
+| SCRUM-194 (+192, 195) | Final verification and fixes | Teammate 3 (last) |
 
-Definition of Done (from the Jira descriptions): persisted data, applicable server-side permission checks, input validation, and verification of the main and error paths. Frontend UI completion is tracked separately, so everything below is backend-first. UI wiring happens after the API merges.
+What repo recon (16 Nov) found, and what it means for the plan:
+
+- Audit helper recordAudit(tx, event) exists with 8 callers, but there are no auth events, the staff created, updated and role-changed events are declared and never called, patient registration and booking never write audit rows, and the admin audit screen still reads fixtures.
+- Prescriptions are real (create, patient list, pharmacist read). There is no stock table, no dispense record and no stock or dispensing API. The pharmacy stock screens run on in-memory demo state.
+- The specialty table exists and is seeded. Each doctor has one specialty\_id column. There is no visit\_reason table yet (the ERD has it, with a specialty\_id), and appointment.visit\_reason\_id has no foreign key.
+- hospital\_settings exists with a singleton row. The admin settings form runs on fixtures, saves nothing, and the Role Permissions toggles on the same page change nothing on the server.
+- The doctor finder for patients is real but only filters by name and specialty.
+
+Definition of Done (relaxed on purpose, this is a second-year project): a server-side permission check, validated input, one temporary happy-path test and one temporary failure-path test (run, record passing evidence, then remove the temporary files), an audit event on every write, and no screen left running on fixtures. Cap each story at about 8 tests. Frontend UI completion is tracked separately, so everything below is backend first and UI wiring happens after the API merges.
 
 ## 2. Ground rules carried over
 
-- The ERD is the source of truth and no synthetic tables are added. If a story needs a column or table the ERD lacks, stop and raise it with the schema owner.
+- The ERD is the source of truth. The new tables in F1 must match the ERD names and columns. The ERD defines stock\_batch, dispense\_record and visit\_reason (with specialty\_id), so use those names and columns exactly. If something is missing from the ERD, stop and raise it with the schema owner.
 - Business logic lives in lib/services/\*, route handlers stay thin.
-- Every notion of today or current time uses Asia/Colombo, reusing lib/clinic-time.ts.
-- Zod schemas in lib/schemas/\* are the contract. Write bodies use .strict() so unknown fields are rejected (this also keeps NIC out for good).
-- No patient data values in audit metadata or logs. Record which fields changed, not what they changed to (PDPA).
+- Every notion of today or current time uses Asia/Colombo through lib/clinic-time.ts.
+- Zod schemas in lib/schemas/\* are the contract. Write bodies use .strict() so unknown fields are rejected.
+- No patient data values in audit metadata or logs. Record which fields changed, not what they changed to. Medicine ids and stock quantities are fine because they are not patient data.
 - Every state-changing service call writes its audit row inside the same DB transaction as the change.
 - Role check on every route through requireRole, then a record-level policy check. Wrong role returns 403. A record the caller is not allowed to see returns 404 so existence is not leaked.
-- Appointment tokens (appointment\_no) are never renumbered by anything in this sprint.
+- ~~Keep the full test suite until the end.~~ On 17 Nov, the user explicitly moved the cleanup forward: keep the 16 focused tests documented in [testing.md](testing.md). Teammates create temporary feature tests, run them, record successful results, then delete only their temporary tests and fixtures. This overrides the original timing below.
 
-## 3. Your tasks as lead (foundation first, then your own fixes)
+### Teammate testing workflow (updated at the user's request)
 
-Everything in this section is yours, not a teammate task. Teammates cannot start building until F1 to F5 and F7 are merged to dev, so do those first. S1 (ban enforcement/session revocation) and S2 (generic admin API isolation) are included in the foundation before handover. S3 to S7 remain separate lead follow-ups.
+For code changes in every teammate track:
 
-| Teammate                            | Blocked until you merge                                                      | Can start meanwhile                               |
-| ----------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------- |
-| 1, Queue and Front Desk             | F1, F2, F3, F4, F5                                                           | Zod request and response schemas, route skeletons |
-| 2, Intake and Consultation          | F1, F2, F3, F4, F5, F7 (plus the Teammate 1 check-in PR for end-to-end runs) | Zod schemas, vitals validation ranges             |
-| 3, Clinical Record and Prescription | F1, F2, F4, F5, F7 and decisions D3, D4, D5                                  | Zod schemas, prescription item validation         |
+1. Write small temporary tests alongside the feature: one happy path and one failure path, plus the relevant permission, ownership and rollback cases below. Keep each story to about 8 tests at most.
+2. Keep temporary feature tests separate from the existing 16 core tests, for example `tests/temporary/pharmacy.test.ts`. Do not replace or delete the core tests or shared Vitest configuration.
+3. Run the temporary tests and `pnpm test`; fix failures and rerun until all relevant checks pass. A skipped test is not a pass. If implementation changes again, rerun the relevant tests before recording success.
+4. Record the tested revision, command, date, pass/fail counts and a short description of the cases in the PR or Jira ticket. Use synthetic data and keep patient values and secrets out of evidence.
+5. Only after successful runs and recording the evidence, delete the temporary test files and fixtures created for that feature. Do not delete a failing test to make the suite green, or remove another track's files.
+6. Run `pnpm test` once more after cleanup; the 16 core tests must still pass. The final feature handover contains implementation code and a short verification note, without the temporary tests or unused test dependencies.
 
-**Foundation implementation and handover contract:** see [Sprint recovery foundation](sprint-recovery-foundation.md). This branch is not merged yet; do not treat this document as deployment evidence.
+This keeps the repository small, but removed checks no longer protect against future regressions. Recreate the relevant temporary tests when changing those features later. Tests are already excluded from the Docker build context; this cleanup affects repository size, not deployed application size.
 
-**F0. Recon first.** Run the 8-point repo recon prompt before F1. The clinical tables may not exist yet, and the staff report found no authorship foreign keys on notes, intake or prescriptions, so F1 may be bigger than the list below.
+## 3. Your tasks as lead (foundation first, then your own stories)
 
-**F1. Schema reconciliation (one migration, one owner).** Compare the Drizzle schema with the ERD for queue\_entry, encounter, vitals, preliminary\_note, clinical\_note, prescription, prescription\_item and audit\_log, and fix the gaps in a single migration. What the stories need at minimum:
+Progress on branch `feat/sprint-foundation`: ~~strikethrough~~ marks completed code, file preparation or code review. **The F1 migration and one-time sample insertion were applied and verified on 17 Nov 2026.** The foundation seed code and command were then removed as requested; `seed:admin` remains. This branch has not been merged. Diagram edits, F2 manual checks and the late tasks remain pending. Current suite: 16 tests passed, with none skipped; TypeScript and lint passed (two existing lint warnings). Details: [lead handover](../lib/audit/README.md).
 
-- queue\_entry: appointment\_id (unique, so check-in is idempotent), status, checked\_in\_at and called\_at. The actor is recorded in audit\_log. Order by checked\_in\_at then id; manual reordering is deferred because the ERD has no ordering column.
-- encounter: one per appointment (unique), patient\_id, doctor\_id, status, started\_at and ended\_at. Completion actor is recorded in audit\_log.
-- vitals: encounter\_id, the typed columns for fixed vitals, a JSONB column for extra vitals, recorded\_by, recorded\_at.
-- preliminary\_note: encounter\_id, author\_id, content and created\_at. Put the initial complaint in content; there is no separate complaint column.
-- clinical\_note: encounter\_id, author\_id, content, created\_at and updated\_at (append-only, see D3).
-- medicine, prescription and prescription\_item: ERD medicine catalog, prescription header (encounter\_id, doctor\_id, status, created\_at) and items referencing medicine\_id with dosage, frequency, duration\_days, quantity and optional instructions.
-- audit\_log: id, user\_id, action, entity\_type, entity\_id, metadata JSONB and created\_at. The helper maps actorId/targetType/targetId to these ERD names.
+Teammates 1 and 2 cannot start the database-backed parts until F1 is merged to dev. Push it on day one. Teammate 3 has no blocker at the start.
 
-The ERD column names win over anything written here. After F1, schema changes go through one designated person only.
+| Teammate | Blocked until you merge | Can start meanwhile |
+| --- | --- | --- |
+| 1, Pharmacy | F1 | Zod schemas, route skeletons, reading the prescription read path |
+| 2, Doctor finder and admin config | F1 (reason tables only) | Specialty management, hospital settings, Zod schemas |
+| 3, Audit screen, wiring, finish | Nothing | Audit read API and screen, docs outline |
 
-**F2. Audit helper (SCRUM-171 foundation).** lib/services/audit.ts exposing recordAudit(tx, { actorId, action, targetType, targetId, metadata }). It takes the transaction handle so the audit row commits or rolls back with the change. There is no update or delete path for audit rows anywhere in the app. To avoid merge conflicts, each track adds its action names in its own file under lib/audit/actions/ (auth.ts, staff.ts, patient.ts, queue.ts, intake.ts, consultation.ts, clinical-note.ts, prescription.ts) and nobody edits a shared constants file.
+**F0. Recon first (about an hour).** The ERD has been checked: it defines stock\_batch, dispense\_record and visit\_reason (with specialty\_id), and F1 follows it. ~~Confirm in the repo what status values prescription.status already has, and whether lib/audit/actions/ exists as a folder of per-feature files.~~ Confirmed in code: `issued` is the existing prescription status, and per-feature audit action files already exist. Database preflight found no existing prescriptions.
 
-**F3. Queue contract (types only).** lib/schemas/queue.ts with the status enum waiting, intake\_done, with\_doctor, completed, plus typed signatures for checkInAppointment and transitionQueueEntry (it accepts an optional transaction handle, so callers can change status in the same transaction as their own write). ReorderQueue reserves a future contract pending an ERD ordering field. Teammate 1 implements the active contracts; Teammates 2 and 3 code against the signatures. Transition rules:
+**F1. One migration, one owner.** The schema and migration are applied and verified in PostgreSQL, including the revised prescription item fields. Merging F1 to dev and updating the diagrams remain pending. Applied in a single migration:
 
-| Transition                   | Who             | Triggered by                                 |
-| ---------------------------- | --------------- | -------------------------------------------- |
-| (new) to waiting             | receptionist    | check-in of a booked appointment dated today |
-| waiting to intake\_done      | nurse           | saving the intake record (SCRUM-145)         |
-| intake\_done to with\_doctor | treating doctor | opening the visit (SCRUM-144)                |
-| with\_doctor to completed    | treating doctor | completing the consultation (SCRUM-144)      |
+- ~~stock\_batch, exactly as in the ERD: id, medicine\_id, batch\_no, expiry\_date, quantity\_on\_hand (check >= 0), received\_at.~~
+- ~~dispense\_record, exactly as in the ERD: id, prescription\_id, dispensed\_by, dispensed\_at. No unique constraint, because the ERD allows many records per prescription.~~ Dispensing once is enforced in the service by locking the prescription row and checking its status.
+- ~~visit\_reason, exactly as in the ERD: id, name (unique), specialty\_id (foreign key to specialty, required), is\_active.~~
+- ~~The missing foreign key from appointment.visit\_reason\_id to visit\_reason.~~
+- ~~prescription\_item: make medicine\_id nullable and add medicine\_name (text), with a check that exactly one of the two is set.~~ This allows a doctor to prescribe a medicine outside the catalogue once Teammate 1 implements P4. Update the ERD and class diagram to match (source files still needed).
+- ~~Make prescription.status a database enum with the values it uses today plus dispensed (check the current values first), and use that enum in the Drizzle schema.~~
+- ~~Insert sample medicines and visit reasons once, outside the migration.~~ Completed: 10 medicines, one batch of 100 units each with expiry 2028-12-31, and six visit reasons across five specialties. At the user's request, the foundation seed implementation and command were deleted after the successful run. Future data will be entered manually; fresh installs start with an empty catalogue, stock and visit reasons.
 
-Skipping a state returns 409. Going backwards is not supported this sprint. Receptionists perform check-in but cannot make clinical transitions. Manual reordering is deferred until an ERD ordering field is approved.
+After F1, schema changes go through one designated person only. Also remove nic from patient in the ERD and the class diagram, so the diagrams match the code (the app never stores NIC). **Pending:** the ERD and class-diagram source files were not found in this checkout.
 
-**F4. Access policy helper.** lib/services/access-policy.ts with canViewPatientAdmin(actor, patientId), canViewClinical(actor, patientId) and isTreatingDoctor(actorUserId, appointmentId). One shared definition of authorized so three tracks do not invent three. Foundation access matrix (implemented by the shared policy helper):
+**F2. Audit completion (SCRUM-171).** Lead implementation is complete; SCRUM-171 remains open for teammate events and manual database verification.
 
-| Role         | Can access                                                                                     | Cannot access                |
-| ------------ | ---------------------------------------------------------------------------------------------- | ---------------------------- |
-| patient      | own record, own appointments, own queue entry, own prescriptions                               | anything of another patient  |
-| receptionist | patient administrative details, queue operations, check-in                                     | vitals, notes, prescriptions |
-| nurse        | intake queue, recording intake for waiting patients                                            | doctor notes, prescriptions  |
-| doctor       | own appointments, clinical data of patients they treat (an appointment or encounter with them) | other doctors patients       |
-| pharmacist   | prescriptions (read only)                                                                      | everything else              |
-| admin        | staff management                                                                               | clinical data                |
+- ~~Add auth.sign\_in, auth.sign\_out and auth.sign\_in\_failed through Better Auth hooks.~~ Implemented with hooks and an adapter wrapper so successful session changes and their audit records share a transaction.
+- ~~Add staff.created, staff.updated and staff.role\_changed calls in the staff service (the constants already exist).~~ Staff creation, name updates and role changes now record events; changing a role also revokes existing sessions.
+- ~~Publish a short note for teammates: every new write calls recordAudit(tx, ...) and each track adds its action names in its own file, never a shared constants file.~~ Written in [lib/audit/README.md](../lib/audit/README.md).
+- ~~Spot-check the existing audit callers listed in section 8.~~ Code review confirmed they use the mutation transaction and structural metadata; live database verification remains pending.
+- Verify the append-only trigger once by hand: try an UPDATE and a DELETE on an audit\_log row in psql and confirm both are rejected. **Pending:** `scripts/verify-audit-retention.sql` is prepared but has not been run.
 
-**F5. Test factories.** tests/helpers/factories.ts creating user, patient, doctor, appointment and queue rows inside tests. This lets Teammates 2 and 3 build and test before check-in lands, and gives SCRUM-191 repeatable setup. It is test-only and does not bring back seed:demo.
+SCRUM-171 closes when the catalog in section 8 is fully written and the required manual checks pass.
 
-**F6. Visibility-aware polling hook (small, not blocking).** lib/hooks/use-visible-polling.ts using native fetch only: poll while the tab is visible, pause when hidden, refresh immediately on focus. Teammate 1 builds and owns it, everyone else imports it. It blocks nobody.
+**F3. Deployment/backup preparation and test cleanup brought forward; Docker and restore runtime verification remain pending.**
 
-**F7. Encounter helper.** lib/services/encounter.ts with getOrCreateEncounter(appointmentId, actor, tx?) (idempotent, one encounter per checked-in appointment) and assertEncounterWritable(encounterId, actor, tx), which holds a row lock through the caller transaction and rejects completed visits or the wrong queue phase. Always pass the server-session actor. Three teammates need both, so it lives with you, not in one track.
+On 17 Nov, the user requested Docker/deployment preparation now, then explicitly prohibited running Docker. No Docker command or container was run after that restriction. See [deployment](deployment.md) and [backup/restore](backup-restore.md). Local standalone build, TypeScript, lint and documentation syntax checks passed. The build reported a Next.js security advisory; update the dependency before deployment. Docker installation and backup/restore evidence remain pending.
 
-**Your own stories and fixes (parallel, they block nobody).**
-
-| #   | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Why                                                                                           |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| S1  | SCRUM-188 gap: add a banned check to requireAuth and requireRole in lib/auth-guard.ts, and delete the target sessions in toggleStaffStatus. Test with an already signed-in user.                                                                                                                                                                                                                                                                                                                                                                                                    | Today a deactivated user keeps working until the session expires.                             |
-| S2  | Block the Better Auth admin endpoints under /api/auth/admin in app/api/auth/\[...all\]/route.ts (at least create-user, set-user-password, remove-user, set-role, update-user). Confirm the UI does not call them first.                                                                                                                                                                                                                                                                                                                                                             | They bypass the role allowlist, the zero-knowledge password flow and the no-hard-delete rule. |
-| S3  | SCRUM-161: PATCH /api/admin/staff/:userId for name and the doctor fields (specialty\_id, reg\_no, consultation\_fee, bio). Strict schema, staff targets only, reject email, role and password.                                                                                                                                                                                                                                                                                                                                                                                      | No staff-detail edit path exists today.                                                       |
-| S4  | SCRUM-171: once F2 is in, retrofit audit events onto staff creation, update, status toggle and sign-in and sign-out, then check every row of the catalog in section 8 before closing.                                                                                                                                                                                                                                                                                                                                                                                               | The staff code writes no audit rows, and the admin audit screen shows fixture data.           |
-| S5  | Create a follow-up ticket, Staff admin hardening, then close SCRUM-160, 162 and 188. Put in it: .strict() on createStaffSchema, 409 for concurrent duplicate emails, 400 for malformed JSON, accurate invite-failure reporting plus the unrendered inviteWarning banner, role-change guards (allowlist, no self, no other admin, no last admin) and doctor lifecycle on role change, staff-only targets and a last-active-admin guard on the status toggle, behavioral tests, and where the department field for non-doctors is stored (the ERD does not seem to have that column). | Keeps the known gaps visible after the tickets close.                                         |
-| S6  | Run the 44 skipped integration tests against the test database, especially the booking concurrency ones.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | The Done booking tickets rest on them.                                                        |
-| S7  | Complete Sprint 4 on the board and drag the open items into the next sprint.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Sprint changes are a board drag.                                                              |
+- SCRUM-173: ~~Docker Compose for Next.js and PostgreSQL, environment-only configuration, migrate and administrator-seed commands, setup instructions.~~ Prepared. **Pending:** build the images and verify one install on a fresh instance; Docker execution was prohibited.
+- SCRUM-196: ~~Document pg\_dump, throwaway restore and record-count/schema spot-check commands.~~ **Pending:** run the actual backup and restore, compare records and capture a screenshot. No run or evidence is claimed.
+- ~~Reduce the tests and write docs/testing.md (section 10).~~ Completed early at the user's request: 16 tests pass, none skipped. Teammate 1 must temporarily test dispensing, record successful results and remove those temporary files after the run.
 
 ## 4. Decisions to lock before kickoff
 
 Each has a recommended default so nobody is blocked waiting.
 
-- **D1. Queue order.** Locked for this foundation: order by checked_in_at, then id as a stable tie-breaker. No manual override or move endpoint until an ERD change adds an ordering field. Never rewrite check-in timestamps or appointment tokens to reorder.
-- **D2. How status changes.** Default: statuses move as a side effect of domain actions (save intake, open visit, complete) through one service function, never through a free-form status PATCH.
-- **D3. Clinical notes.** Default: append-only. Each save inserts a new row with author and timestamp, the latest is current, and no PUT or DELETE route exists. That satisfies no silent overwrites with the least code to verify. If the ERD has one note row per encounter, use a version column and reject stale writes instead.
-- **D4. Prescriptions.** Default: create-only. A correction is a new prescription. Edit and cancel flows are out of scope for this sprint.
-- **D5. History source.** NIC and allergies are excluded by the owner. Do not add identity-document or allergy columns, request fields, UI fields or audit values. History means prior encounters, notes and prescriptions.
-- **D6. Doctor opening a visit.** Default: a doctor can only open entries in intake\_done that belong to them. One active with\_doctor entry per doctor is optional hardening.
+- **D1. One specialty per doctor.** No junction table. "Doctor specialties" in the old SCRUM-169 means editing that one field.
+- **D2. Reason mapping.** Each visit reason belongs to exactly one specialty (visit\_reason.specialty\_id), never straight to doctors. A reason without a specialty is rejected.
+- **D3. Stock model.** Stock is kept as stock\_batch rows (batch number, expiry date, quantity on hand). The UI shows one total per medicine, and the pharmacist adds stock by receiving a batch. No partial dispensing or stock requests. The Jira text saying no batches is out of date because the ERD has them.
+- **D4. Dispensing.** Full dispense only, in one transaction. A prescription can be dispensed once (enforced by the row lock and status check). Only catalogue items are dispensed; items the doctor typed are for the patient to buy outside. Failure leaves stock and prescription status unchanged.
+- **D5. Settings.** Only name, address, phone and email. The Role Permissions toggles on the settings page are deleted because they are fake and the Jira description rules out a custom permission designer.
+- **D6. Finder results.** Active doctors only, ordered by soonest open date. No match shows a plain message and no clinical advice.
 
-## 5. Teammate 1: Queue and Front Desk
+## 5. Teammate 1: Pharmacy
 
-Branch: feat/queue-front-desk. Stories: SCRUM-141, 142, 134. Ship the queue service first (B1), because Teammate 2 cannot run end-to-end without it.
+Branch: feat/pharmacy. Stories: SCRUM-155 (with 158), 157, then the check of 151 and 152.
 
-Needs from you before starting: F1 (queue\_entry), F2, F3, F4, F5.
+Needs from you before starting: F1.
 
-**B1. SCRUM-141, queue service and check-in (first PR, merge within a day or two).** lib/services/queue.ts implementing the F3 contract.
+**Temporary tests for this track:** verify catalogue/stock writes and their validation or permission failures; successful dispensing; insufficient-stock rollback (stock, prescription status, dispense records and audit rows unchanged); double-dispense rejection; patient ownership; mixed catalogue/typed prescriptions; and typed-only "nothing to dispense". Follow the section 2 workflow: run, record evidence, delete only these temporary tests/fixtures, then rerun the 16 core tests. P1-P4 are not done until their checks have passed; no permanent pharmacy test suite is required by this plan.
 
-- POST /api/queue/check-in with an appointment id. Receptionist only.
-- Rules: the appointment must be booked, dated today in Asia/Colombo, and not cancelled. One queue entry per appointment (unique constraint), so repeating the call returns the existing entry instead of duplicating. Creates the entry as waiting.
-- transitionQueueEntry uses a conditional update (UPDATE ... WHERE id and status equal the expected from-state, RETURNING) so two simultaneous transitions produce one success and one 409.
-- Audit in the same transaction: queue.checked\_in and queue.status\_changed.
+**P1. SCRUM-155, catalogue and stock.**
 
-**B2. SCRUM-141, queue management.**
+- GET /api/pharmacy/medicines returns the catalogue with the total quantity on hand per medicine, summed over batches that have not expired (this also covers the old SCRUM-158 view).
+- POST adds a medicine, PATCH edits its details, and POST /api/pharmacy/medicines/:id/batches receives a new stock batch (batch number, expiry date, quantity). Pharmacist only. Strict schema, quantity a non-negative integer.
+- Replace the in-memory pharmacy provider with real fetches once the API merges.
+- Audit: medicine.created, stock.received.
 
-- GET /api/queue?doctorId=&date= returns the queue for staff, filtered by role (a receptionist sees administrative fields only, never clinical data).
-- Manual reordering and POST /api/queue/:id/move are deferred until an ERD ordering column is approved. The ReorderQueue type reserves the future contract; it has no runtime implementation.
-- Nurse and doctor transitions are not endpoints here. Teammate 2 calls transitionQueueEntry from the intake and consultation actions.
+**P2. SCRUM-157, dispensing.** lib/services/dispensing.ts, one transaction:
 
-**B3. SCRUM-142, patient queue status.** GET /api/patient/queue.
+- Lock the prescription row, reject if status is already dispensed (409) or the caller is not a pharmacist (403).
+- For every catalogue item, take stock from the earliest-expiry batches that have not expired, using a conditional update on quantity\_on\_hand (decrement only where the batch has enough, RETURNING). If the total across batches is short for any item, roll back everything and return 409 with no partial change.
+- Insert dispense\_record, set prescription status to dispensed, write the audit row. The row lock plus the status check is what blocks a double dispense.
+- Audit: prescription.dispensed with the prescription id and item count only.
 
-- Returns only the caller own entry for today: status and position.
-- Position is the number of entries ahead of it for the same doctor and date that are not yet completed, plus one. Never expose other patients identities, only the count.
-- Polling follows F6. No WebSockets, no offline clinical data.
+**P3. SCRUM-151 and 152, check and finish.** The patient list and pharmacist read already exist. Confirm both work end to end, patient sees only their own prescriptions, pharmacist search works, and the pharmacist view shows dispensing eligibility (not already dispensed and stock sufficient). Fix whatever is missing.
 
-**B4. SCRUM-134, update patient details.**
+**P4. Medicines outside the catalogue (needed, small).** The prescription form lets the doctor either pick a catalogue medicine or type a medicine name. The create endpoint accepts exactly one of medicine\_id (an active catalogue medicine) or medicine\_name (1 to 100 characters), never both, and the Zod schema enforces it. The patient and pharmacist views show the name for both kinds and label typed ones "not in catalogue, patient buys outside". Dispensing ignores typed items and takes stock only for catalogue items. If a prescription has no catalogue items, dispensing returns 409 "nothing to dispense". When catalogue stock is short, the 409 names the short medicines so the pharmacist can tell the patient. Audit: prescription.created already exists. Extra files for this task: lib/services/prescription.ts, lib/schemas/prescription.ts, the doctor prescription form and the pharmacist reader.
 
-- Receptionist: PATCH /api/reception/patients/:id for demographic and contact fields. patient\_no and user\_id are immutable.
-- Patient: PATCH /api/patient/profile for phone, address and emergency contact only.
-- Strict schema, so any identity-document field is rejected.
-- Audit: patient.updated with changed field names only.
+File boundaries (exclusive): lib/services/dispensing.ts, lib/services/stock.ts, app/api/pharmacy/**, lib/schemas/pharmacy.ts, components/pharmacy/**, lib/audit/actions/pharmacy.ts.
 
-File boundaries (exclusive): `lib/services/queue.ts`, `app/api/queue/**`, `app/api/patient/queue/**`, `app/api/patient/profile/**`, `app/api/reception/patients/[id]/**`, `lib/schemas/queue.ts`, `lib/schemas/patient-update.ts`, `lib/hooks/use-visible-polling.ts`, `components/reception/queue-management.tsx`, `lib/audit/actions/queue.ts` and `patient.ts`.
+## 6. Teammate 2: Doctor Finder and Admin Config
 
-## 6. Teammate 2: Nurse Intake and Consultation
+Branch: feat/admin-config. Stories: SCRUM-168 (with 169), 170, 189.
 
-Branch: feat/intake-consultation. Stories: SCRUM-145, 144, then SCRUM-191 once everything is merged.
+Needs from you before starting: F1 for the reason tables. Specialty management and settings can start immediately.
 
-Needs from you before starting: F1 (encounter, vitals, preliminary\_note), F2, F3, F4, F5, F7. Needs from Teammate 1: the check-in and transitionQueueEntry PR for end-to-end runs. Until it lands, build and test against the F5 factories.
+**Temporary tests for this track:** verify successful specialty/reason/settings writes and admin-only access; rejection of a reason without a specialty; finder results containing only active doctors of the mapped specialty; the no-active-doctor result; and the chosen reason being stored during booking. Follow the section 2 workflow: run, record evidence, delete only these temporary tests/fixtures, then rerun the 16 core tests.
 
-**I1. SCRUM-145, nurse intake.**
+**B1. Specialties.** Admin-only routes under app/api/admin/specialties to create and rename (the list route exists). Block delete when doctors reference the specialty. Add PATCH /api/admin/doctors/:userId/specialty to change a doctor's one specialty. Audit: specialty.created, specialty.updated, doctor.specialty\_changed.
 
-- GET /api/nurse/queue lists today waiting entries (nurse only).
-- POST /api/encounters/:id/intake saves vitals (typed columns plus JSONB extras), the initial complaint and a preliminary note, with author and timestamp.
-- Validation: plausible numeric ranges for the typed vitals, bounded size and key count for JSONB extras. No automated clinical score.
-- Saving the intake and moving waiting to intake\_done happen in one transaction, by passing the transaction handle to transitionQueueEntry. Only for waiting entries, otherwise 409.
-- Audit: intake.recorded.
+**B2. SCRUM-168, reason mapping.** CRUD for visit\_reason under app/api/admin/visit-reasons, where each reason has one specialty\_id. Reject a reason with no specialty. Replace the fixture-based DoctorReasonConfig screen with a reason list that has a specialty dropdown per reason. Audit: visit\_reason.created, visit\_reason.updated (changing the specialty is an update).
 
-**I2. SCRUM-144, open and complete.**
+**B3. SCRUM-170, patient doctor finder.**
 
-- POST /api/doctor/queue/:entryId/open moves intake\_done to with\_doctor for the treating doctor only (D6).
-- POST /api/encounters/:id/complete requires at least one clinical note (Teammate 3 writes them, read the clinical\_note table), then in one transaction marks the encounter completed with author and timestamp and moves with\_doctor to completed.
-- After completion, clinical writes are rejected through assertEncounterWritable (F7).
-- Audit: consultation.opened and consultation.completed.
+- GET /api/patient/doctor-finder?reasonId= returns active doctors whose specialty is the reason's specialty, ordered by soonest open date (reuse the existing open-dates service).
+- No match returns an empty list and a plain message.
+- The chosen reason continues into booking and is stored in appointment.visit\_reason\_id. Keep the change to the booking service minimal and rebase on Teammate 3's audit calls (section 9).
 
-**I3. SCRUM-191, verification (last).** Run the checklist in section 9 after all PRs are merged, fix or file what fails, and attach the results to the ticket.
+**B4. SCRUM-189, settings.**
 
-File boundaries (exclusive): `lib/services/intake.ts`, `lib/services/consultation.ts`, `app/api/nurse/**`, `app/api/encounters/[id]/intake/**`, `app/api/encounters/[id]/complete/**`, `app/api/doctor/queue/**`, `lib/schemas/intake.ts`, `lib/schemas/consultation.ts`, `components/nurse/**`, doctor consultation components, `tests/verification/**`, `lib/audit/actions/intake.ts` and `consultation.ts`.
+- GET and PUT /api/admin/settings for the four fields, admin only, strict schema, singleton row.
+- Replace the fixture form and delete the Role Permissions section.
+- Audit: settings.updated with changed field names only.
 
-## 7. Teammate 3: Doctor Clinical Record and Prescription
+File boundaries (exclusive): app/api/admin/specialties/**, app/api/admin/doctors/**, app/api/admin/visit-reasons/**, app/api/admin/settings/**, app/api/patient/doctor-finder/\*\*, lib/services/specialty.ts, lib/services/visit-reason.ts, lib/services/settings.ts, lib/schemas/admin-config.ts, components/admin/doctor-reason-config.tsx, components/admin/hospital-details-form.tsx, lib/audit/actions/admin-config.ts and settings.ts.
 
-Branch: feat/clinical-record. Stories in order: SCRUM-146, 148, 150.
+## 7. Teammate 3: Audit Screen, Wiring and Finish
 
-Needs from you before starting: F1 (clinical\_note, prescription, prescription\_item), F2, F4, F5, F7, and decisions D3, D4, D5. Nothing blocks you from Teammate 2, but SCRUM-148 displays data written by intake and consultation, so build it against the F5 factories and integrate once their PR is on dev.
+Branch: feat/audit-and-finish. Stories: SCRUM-172, the audit wiring below, 197, 198, then 194 once everything is merged.
 
-**R1. SCRUM-146, clinical notes.**
+Needs from you before starting: nothing. The audit table and helper already exist.
 
-- POST /api/encounters/:id/notes appends a note with the session doctor as author and a server timestamp. GET lists the notes in order.
-- No PUT or DELETE routes (D3). Accepted only while the queue entry is with\_doctor and only from the treating doctor, enforced with assertEncounterWritable (F7) and isTreatingDoctor (F4).
-- Audit: clinical\_note.created.
+**Temporary tests for this track:** for C1/C2 and release fixes, verify audit filters/paging and non-admin denial, patient registration/booking/cancellation audit events, transaction failure paths and metadata containing no patient values. For each code fix, add a focused temporary regression check, run it, record successful evidence and remove that temporary check. Rerun the 16 core tests after cleanup. C3's document/presentation tasks do not need artificial automated tests; C4 still requires the section 9 manual journey and saved evidence after all tracks merge.
 
-**R2. SCRUM-148, doctor review.**
+**C1. SCRUM-172, audit screen.**
 
-- GET /api/doctor/visits/:queueEntryId returns intake, vitals and notes for the visit.
-- GET /api/doctor/patients/:patientId/history returns prior encounters, notes and prescriptions (history is prior encounters, notes and prescriptions; NIC and allergies are excluded).
-- Treating doctors only, enforced through isTreatingDoctor. Anyone else gets 404. No AI recap.
+- GET /api/admin/audit with filters for user, action and date range, newest first, paged. System admin only (403 for everyone else).
+- Read-only. No route may update or delete audit rows.
+- Replace the fixtures in components/admin/audit-trail.tsx with real data.
 
-**R3. SCRUM-150, create prescription.**
+**C2. Audit wiring for earlier features (merge this PR early).** Add recordAudit calls inside the existing transactions for patient registration, appointment booking and appointment cancellation. Actions: patient.registered, appointment.booked, appointment.cancelled. Metadata holds ids only.
 
-- POST /api/encounters/:id/prescriptions. Doctor only, only the treating doctor, only while the encounter is writable.
-- Body: at least one item, each with medicine, dosage, frequency and duration, all required, with length limits and a cap on item count. Medicine must be an existing active medicine_id from the ERD medicine table. Free-text substitution is not supported. Quantity is also required and positive.
-- Header stores doctor, encounter and timestamp. Immutable after creation (D4).
-- Reads: GET /api/patient/prescriptions (own only) and GET /api/prescriptions/:id for the pharmacist (read only, no dispensing this sprint).
-- Audit: prescription.created.
+**C3. SCRUM-197 and 198, docs and demo.**
 
-File boundaries (exclusive): `lib/services/clinical-notes.ts`, `lib/services/record-review.ts`, `lib/services/prescription.ts`, `app/api/encounters/[id]/notes/**`, `app/api/encounters/[id]/prescriptions/**`, `app/api/doctor/visits/**`, `app/api/doctor/patients/**`, `app/api/prescriptions/**`, `app/api/patient/prescriptions/**`, `lib/schemas/clinical-note.ts`, `lib/schemas/prescription.ts`, doctor review components, `lib/audit/actions/clinical-note.ts` and `prescription.ts`.
+- Align the SRS, use cases, architecture diagram, UI figures and acceptance criteria with the web-only scope, and finish the installation guide and six-role user guides.
+- Prepare synthetic accounts and the full hospital journey for the demo, a short presentation, and viva rehearsal. Check that the repository and Jira references are accurate.
+
+**C4. SCRUM-194, final verification and fixes (last).** Run the checklist in section 9 after all PRs are merged. It absorbs the old SCRUM-192 and 195: fix release-blocking defects only, record known limitations, no new features. Attach results to the ticket.
+
+File boundaries (exclusive): app/api/admin/audit/**, lib/services/audit-query.ts, components/admin/audit-trail.tsx, docs/**, the audit calls inside lib/services/patient.ts and the booking services, lib/audit/actions/patient.ts and appointment.ts.
 
 ## 8. Audit event catalog (SCRUM-171)
 
-| Area                    | Actions                                                                                             | Owner      |
-| ----------------------- | --------------------------------------------------------------------------------------------------- | ---------- |
-| Authentication          | auth.sign\_in, auth.sign\_out, auth.sign\_in\_failed                                                | You        |
-| Staff                   | staff.created, staff.updated, staff.role\_changed, staff.deactivated, staff.reactivated             | You        |
-| Patient                 | patient.updated (registration and booking events from earlier sprints should already exist, verify) | Teammate 1 |
-| Queue                   | queue.checked\_in, queue.status\_changed (queue.reordered deferred with manual ordering)            | Teammate 1 |
-| Intake and consultation | intake.recorded, consultation.opened, consultation.completed                                        | Teammate 2 |
-| Clinical notes          | clinical\_note.created                                                                              | Teammate 3 |
-| Prescription            | prescription.created                                                                                | Teammate 3 |
+| Area | Actions | Owner |
+| --- | --- | --- |
+| Authentication | ~~auth.sign\_in, auth.sign\_out, auth.sign\_in\_failed~~ (implemented; live verification pending) | You |
+| Staff | ~~staff.created, staff.updated, staff.role\_changed~~ (implemented; live verification pending; staff.deactivated and staff.reactivated already exist) | You |
+| Patient and booking | patient.registered, appointment.booked, appointment.cancelled | Teammate 3 |
+| Pharmacy | medicine.created, stock.received, prescription.dispensed | Teammate 1 |
+| Specialties and reasons | specialty.created, specialty.updated, doctor.specialty\_changed, visit\_reason.created, visit\_reason.updated | Teammate 2 |
+| Settings | settings.updated | Teammate 2 |
+| Already in place, ~~verify~~ (code spot-check complete; live verification pending) | patient.updated, queue.checked\_in, queue.status\_changed, encounter.created, intake.recorded, consultation.opened, consultation.completed, clinical\_note.created, prescription.created | You (spot check) |
 
-SCRUM-171 closes when every row above writes an audit\_log row with actor, action, target and timestamp, and the app exposes no way to edit or delete audit rows.
+SCRUM-171 closes when every row above writes an audit\_log row with actor, action, target and timestamp, the metadata holds no patient data values, the append-only trigger has been checked by hand, and the app exposes no way to edit or delete audit rows.
 
-## 9. Branches, merge order and the SCRUM-191 acceptance checklist
+## 9. Branches, merge order and the final verification checklist
 
-Branches: feat/queue-front-desk (Teammate 1), feat/intake-consultation (Teammate 2), feat/clinical-record (Teammate 3). File boundaries do not overlap, so PRs can merge in any order, with two exceptions: your foundation lands first, and the Teammate 1 queue-service PR (B1) lands before Teammate 2 runs end-to-end.
+Branches: feat/pharmacy (Teammate 1), feat/admin-config (Teammate 2), feat/audit-and-finish (Teammate 3). File boundaries do not overlap, with one exception: the booking service. Teammate 3's audit wiring PR (C2) is small, so it merges first. Teammate 2's finder change to booking (B3) rebases on it.
 
-Shared-file rules: `lib/auth-guard.ts` and `lib/auth.ts` are yours only (S1, S2). Schema and migrations belong to the one schema owner. Audit action names live in per-feature files, never a shared one. The folder `app/api/encounters/[id]/` is split by sub-folder: intake and complete are Teammate 2, notes and prescriptions are Teammate 3.
+Merge order: your F1 first, then C2, then everything else in any order. lib/auth.ts and lib/auth-guard.ts are yours only. Schema and migrations belong to the one schema owner. Audit action names live in per-feature files, never a shared one.
 
-Acceptance checklist for SCRUM-191:
+Checklist for SCRUM-194 (done by Teammate 3 with the whole team around for fixes):
 
-- [ ] Check-in: a booked appointment dated today becomes a waiting queue entry. Repeating the call returns the same entry. A future-dated or cancelled appointment is rejected. A patient calling the endpoint gets 403.
-- [ ] Order: entries follow checked_in_at then id, and appointment token numbers are unchanged. Manual reordering is out of scope until an ERD change is approved.
-- [ ] Intake: nurse saves vitals and a preliminary note, the entry moves to intake\_done, and the receptionist cannot read the vitals.
-- [ ] Transitions: skipping a state returns 409, a wrong doctor gets 404, and two simultaneous transitions produce one success and one 409.
-- [ ] Patient queue view: shows own status and position only, polling pauses when the tab is hidden and refreshes on focus, and no WebSocket is open.
-- [ ] Doctor flow: open visit, review intake and history (treating doctor only), add a note, complete the consultation. Completion without a note is rejected, notes cannot be edited or deleted, and nothing can be added after completion.
-- [ ] Prescription: a valid prescription saves, missing fields are rejected, the patient sees only their own, the pharmacist can read, the receptionist gets 403.
-- [ ] Patient details: receptionist and patient updates follow the field rules, unknown fields (including any identity-document field) are rejected.
-- [ ] Deactivated staff (your task S1): an already signed-in user is rejected on the next request and cannot sign in, reactivation restores access, history is preserved.
-- [ ] Audit: each event in section 8 has a row, metadata holds no patient data values, and no route can modify audit rows.
+- [ ] Full six-role journey on seeded accounts: register, book, check in, intake, consult with a note, prescribe, dispense.
+- [ ] Dispensing: dispense the same prescription twice (second attempt blocked), dispense with too little stock (rejected, stock and status unchanged). Do this by hand, it is your evidence for the old SCRUM-192. Also prescribe a medicine that is not in the catalogue: it shows as "not in catalogue" and does not block dispensing the rest.
+- [ ] Pharmacist cannot see anything outside prescriptions and stock. Patient sees only own prescriptions and appointments. Receptionist gets 403 on clinical and pharmacy routes.
+- [ ] Doctor finder: pick a reason, see only active doctors of the reason's specialty, book from the result, and a reason whose specialty has no active doctors shows the no-match message.
+- [ ] Admin: staff creation sends the password-set email, password reset link works once and then expires, specialty and reason changes show up in the patient finder.
+- [ ] Settings: saved values persist after reload, and the hospital name appears in emails.
+- [ ] Deactivated staff are rejected on the next request.
+- [ ] Audit: each event in section 8 has a row, the admin audit screen filters work, no patient data values appear in metadata, and no screen anywhere still uses fixtures.
+- [ ] Fresh install from the Docker Compose instructions works, and the backup restore run has evidence.
 
-## 10. Suggested timeline
+**SCRUM-175 (password reset and staff first-password setup).** Already built, so no code. Close it as Done after one manual run with real SMTP: create a staff account, open the invite email, set a password, sign in, reuse the same link (it must be rejected), and request a patient forgot-password code. Repeat the run the day before the demo. Known limitations to record: if the email fails to send, the admin is not told (the Resend Invite button is the workaround), and fixing a typo in a staff email may mean creating a new account (test this during the run).
 
-These are targets, not promises. They work back from the 15 Nov audit date.
+## 10. Test cleanup (completed early at the user's request)
 
-- Mon 9 to Tue 10 Nov: you run the recon, lock D1 to D6 and merge F1 to F5 and F7. Teammates read their section and write Zod schemas meanwhile.
-- Wed 11 Nov: Teammate 1 merges the queue-service PR (B1). Teammates 2 and 3 build against the F5 factories. You do S1 and S2.
-- Thu 12 to Fri 13 Nov: remaining PRs merged. You finish S3 and the S4 audit retrofit.
-- Sat 14 Nov: Teammate 2 runs the SCRUM-191 checklist. You check the audit catalog for SCRUM-171 and run the S6 integration tests.
-- Sun 15 Nov: buffer, plus the S5 and S7 Jira clean-up.
+~~Reduce the large suite and write docs/testing.md.~~ Done on 17 Nov 2026, before teammate merges, following the user's explicit instruction to keep only a minimal number. The suite is now **16 tests in 7 files; all 16 pass with no skips**. The previous 594 cases included 89 skipped database tests. Schema-only tests, snapshots, UI checks, old integration suites and unused fixtures have been removed.
+
+Run `pnpm test`. [docs/testing.md](testing.md) gives one plain-language line per test explaining what it proves and why, how to run the suite, which services are doubled, and what is not covered.
+
+Current coverage: role guards, patient ownership, booking capacity, consultation opening/completion, a staff write with its audit record, and basic authentication audit behavior. These are focused behavior checks; PostgreSQL concurrency and the full browser journey still need manual verification.
+
+**Still pending:** Teammate 1 must create and run temporary happy-path and insufficient-stock rollback tests when dispensing is implemented, record the passing results and delete those temporary files afterwards. Follow the same process for the other teammate code changes. The retained core suite stays at 16; temporary checks are not counted as permanent coverage. Teammate work and the manual release checklist remain open.
+
+## 11. Suggested timeline
+
+These are targets, not promises, and the viva date is not confirmed. Keep the last 5 to 7 days free for verification and the demo. If the viva is sooner than late November, tell me and the plan gets compressed.
+
+- Mon 16 to Tue 17 Nov: you run F0 and merge F1. Teammates read their section and write Zod schemas. Teammate 3 starts C1 and C2. Teammate 2 starts specialties and settings.
+- Wed 18 to Sat 21 Nov: Teammates 1 and 2 build against the migration. You finish F2 and do the one SCRUM-175 manual run. C2 merges first, then the rest as they are ready.
+- Sun 22 Nov: all feature PRs merged. Jira statuses updated.
+- Mon 23 to Wed 25 Nov: Teammate 3 runs SCRUM-194 and everyone fixes what fails. You do Docker Compose and the backup run.
+- Thu 26 Nov: ~~you cut the tests and write docs/testing.md~~ (completed early on 17 Nov at the user's request). Docs finalised.
+- Fri 27 to Sun 29 Nov: demo data, presentation and viva rehearsal.
