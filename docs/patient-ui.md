@@ -8,14 +8,15 @@ the frozen doctor/appointment fixtures have been removed.
 
 - The patient layout checks the session, rejects banned users, redirects other
   roles to their workspace, and provisions the linked patient profile idempotently.
-- `/patient/book` reads active doctor accounts and specialties on the server.
-  Patients can search and filter this real directory. Guided reason matching is
-  deferred until persisted reason-to-specialty mappings exist.
+- `/patient/book` reads active visit reasons and uses the selected reason to call
+  the patient doctor-finder API. The API returns active doctors whose specialty
+  matches the persisted reason-to-specialty mapping.
 - Selecting a doctor loads the [open-dates API](open-dates.md). The booking widget
   shows clinic sessions, remaining capacity, and the consultation fee. It keeps
   only draft selections, loading state, and dialogs in the browser.
-- Booking submits only `doctorId` and `date`. The server derives patient ID and
-  actor from the authenticated session, then calls the transactional booking service.
+- Booking submits `doctorId`, `date` and the selected `visitReasonId`. The server
+  derives patient ID and actor from the authenticated session, verifies that the
+  doctor's specialty matches the reason, then calls the transactional service.
 - The confirmation URL includes the saved appointment UUID:
   `/patient/appointments/confirmed?id=...`. The server reads that patient-owned
   record, so refreshes and direct links work. Missing, malformed, and foreign
@@ -50,7 +51,8 @@ Patient-only. Accepts exactly:
 ```json
 {
   "doctorId": "11111111-1111-4111-8111-111111111111",
-  "date": "2026-11-07"
+  "date": "2026-11-07",
+  "visitReasonId": "22222222-2222-4222-8222-222222222222"
 }
 ```
 
@@ -83,32 +85,25 @@ All API responses send `Cache-Control: no-store`. Mutations reject a supplied Or
 header that does not match the request origin. They still require an authenticated
 session when the header is absent, such as for a server client.
 
-## Remaining integrations
+## Current mixed-state screens
 
-Queue/check-in records and live polling are not implemented by this track. The old
-checked-in preview and timestamp-only refresh have been removed from the patient
-queue screen. It now shows the patient's real next appointment and reception
-guidance, without claiming a live position or check-in status. The future check-in
-implementation must extend the cancellation guard using authoritative visit/queue
-state (or transition the appointment out of `booked`) before enabling check-in.
+The patient queue screen polls the real `/api/patient/queue` endpoint and shows an
+owned checked-in visit, workflow status and position. Reception check-in UI still
+contains prototype state, so the complete patient-arrival browser journey remains
+pending final verification.
 
-Profile editing, password editing, and prescriptions remain separate prototype
-flows. Their remaining example data stays in `lib/mock/patient.ts`; booking does
-not read it. Real profile/account updates, session revocation, prescriptions and
-dispensing history require their respective integrations.
+Profile editing and patient prescription listing are API-backed. The patient
+dashboard itself still renders a fixture-derived latest-prescription card, pending
+count and static profile-status text. Those dashboard cards must not be used as
+evidence of prescription or profile state; use the dedicated profile and
+prescription pages.
 
 ## Verification
 
-Unit tests cover API authentication, role and ban checks, session-derived ownership,
-strict input validation, cross-origin mutation rejection, cache headers, service
-status codes, and generic server errors. PostgreSQL tests cover owned appointment
-lists and confirmations, history classification, active-doctor queries, concurrent
-profile provisioning, cancellation ownership and permissions, idempotency,
-session/past-date rejection, concurrent cancellation versus booking, reopened
-capacity, and token preservation.
-
-Run `pnpm test` for unit tests, and use the isolated database setup in
-[Transactional appointment booking](booking-service.md#verification) for database tests.
+The current permanent suite has 16 focused tests; it covers booking capacity and
+patient access policy but not the complete patient browser journey or PostgreSQL
+concurrency. Older verification text and removed temporary suites are historical
+evidence only. See [testing](testing.md) for current coverage.
 No migration is required.
 
 For a manual browser check:

@@ -1,38 +1,51 @@
-﻿# Admin UI
+# Admin UI
 
-The admin screens use the shared AppShell, PageTitle, Panel, Input, Select, Checkbox and Button components. Layouts stack on small screens and expand into columns or directory rows when space allows.
+The admin workspace uses the shared `AppShell`, `PageTitle`, `Panel`, `Input`,
+`Select` and `Button` components. It is a web interface; there is no separate
+mobile application or installed-PWA requirement in the recovery scope.
 
-## Structure
+## Current routes and data sources
 
-```text
-app/(authenticated)/admin/
-  page.tsx                 # Dashboard layout and navigation actions
-  staff/page.tsx           # Staff Management layout
-  settings/page.tsx        # Hospital Details and Role Permissions layout
-  audit/page.tsx           # Read-only Audit Trail layout
-  doctor-finder/page.tsx   # Doctor Finder layout
+| Route                  | Current behavior                                                                 | Data source                               |
+| ---------------------- | -------------------------------------------------------------------------------- | ----------------------------------------- |
+| `/admin`               | Dashboard metrics and recent activity                                            | Fixture content; not operational evidence |
+| `/admin/staff`         | Create staff, list staff, change supported details/status and resend invitations | Admin staff APIs and PostgreSQL           |
+| `/admin/settings`      | Edit hospital name, address, phone and email                                     | `GET/PUT /api/admin/settings`             |
+| `/admin/doctor-finder` | Maintain visit reasons and their one-specialty mapping                           | Specialty and visit-reason APIs           |
+| `/admin/audit`         | Filter and page immutable audit records                                          | `GET /api/admin/audit`                    |
 
-components/admin/
-  staff-directory.tsx         # Search, add and manage demo staff
-  hospital-details-form.tsx   # Hospital details form
-  role-permissions-form.tsx   # Editable role permission checkboxes
-  doctor-reason-config.tsx    # Doctor selection and visit-reason assignments
-  audit-trail.tsx             # Filters, event details and filtered CSV export
+The old Role Permissions editor is not rendered. Carely uses fixed server-side
+roles rather than a custom permission designer. The unused prototype component
+may still exist in the source tree, but it is not part of the settings screen.
 
-lib/mock/
-  admin.ts                   # Demo staff, hospital details, permissions, reasons and audit events
-```
+## Audit trail
 
-Pages compose the UI. Interactive controls live in client components under the root components/admin folder. No local route component folder or admin state provider is needed. Existing page metadata remains in server modules; client components do not export server-only route settings.
+The audit screen no longer imports `adminAuditEntries`. It requests the real
+read-only audit API, supports user/action/Colombo-date filters, displays newest
+events first, and pages by 10, 20, 50 or 100 rows. Actor identity is joined for
+display; system events may have no actor. The detail view shows structural
+metadata. No audit update or delete API is exposed.
 
-## Demo behavior and future integration
+`GET /api/admin/audit` requires the `admin` role. A signed-in non-admin receives
+403 and unauthenticated callers receive 401. The route is uncached.
 
-This update adds UI behavior only. It does not add database reads, server actions, staff authentication provisioning, or permission enforcement.
+## Settings and doctor-finder configuration
 
-- Staff edits, role permissions and Doctor Finder changes live in each component's React state. They reset on reload or when the component unmounts during navigation.
-- Hospital details remain in the form during the current mount. Saving displays demo feedback; it does not update the shared hospital configuration or database.
-- Adding a staff member adds a directory entry only; it does not create a working login account.
-- Doctor Finder assignments do not yet change the patient-facing doctor search.
-- Audit events are static fixtures. Filtering and event details are read-only; CSV export downloads the currently filtered fixture rows. These are not live security records.
+Hospital settings persist only the four fields in the recovery plan. The settings
+page does not prove that every email template reflects a changed name; that remains
+part of final manual verification.
 
-When the backend is added, move validated record types into the schema/data layer, fetch initial values on the server, and replace demo save handlers with authorized server-side writes. Refresh the affected data after saving. Keep unsaved inputs and feedback local to the forms. Do not introduce a shared provider unless a concrete cross-page requirement remains.
+Each visit reason belongs to one specialty. Patient doctor finding uses that
+mapping and returns active doctors in the mapped specialty. Specialty management
+and doctor-specialty routes exist, but this document does not claim that every
+administrative API has a complete dedicated UI workflow.
+
+## Remaining fixture content and verification
+
+The admin dashboard still uses fixture metrics and recent activity. Do not cite
+those cards as database totals or audit evidence. The staff, settings,
+doctor-finder and audit screens are API-backed.
+
+Temporary C1 checks verified audit filtering/paging and non-admin denial on the
+tested revision; see [audit verification](verification/audit-c1-c2.md). The
+complete audit catalog and browser walkthrough remain part of final verification.

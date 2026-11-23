@@ -7,6 +7,12 @@ Implementation revision: `3b3870a` on `feat/intake-consultation`.
 **Status: automated verification passed; full cross-track acceptance is pending.**
 Do not close SCRUM-191 from this report alone.
 
+> Current-context note (23 November 2026): this is immutable historical evidence
+> for revision `3b3870a`. Clinical-note, prescription and audit work mentioned as
+> missing below now exists in later code, but the 519-test run was not repeated on
+> that later combined revision. The retained current suite has 16 tests. Final
+> cross-track browser acceptance remains pending.
+
 ## Executed checks
 
 | Check                                                                       | Result                                                                                                 |

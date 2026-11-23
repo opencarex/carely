@@ -65,11 +65,7 @@ requirements. Frontend unit coverage verifies form conversion, selection reload,
 receipt verification and rendered states. A browser/database walkthrough remains
 part of SCRUM-191.
 
-Task 6 checks: 436 tests passed and 82 PostgreSQL tests were skipped because test
-credentials are not configured. TypeScript, targeted ESLint and the production
-build passed. Next.js 16.4.0 reported a known-vulnerability warning and recommended
-a security upgrade. Dependency versions were not changed by the UI implementation.
-
-Subsequent [SCRUM-191 verification](verification/scrum-191.md) ran the full suite
-against isolated PostgreSQL: 519 tests passed with none skipped. The report
-distinguishes that automated evidence from the pending cross-track browser checks.
+The older Task 6 and [SCRUM-191](verification/scrum-191.md) counts are historical
+evidence for their stated revisions. The approved cleanup replaced those suites
+with 16 permanent focused tests; current coverage is listed in [testing](testing.md).
+The cross-track browser walkthrough remains pending.

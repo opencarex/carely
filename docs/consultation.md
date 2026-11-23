@@ -1,6 +1,7 @@
 # Consultation API (SCRUM-144)
 
-Teammate 2 branch: `feat/intake-consultation`.
+This document began as the `feat/intake-consultation` handover. Consultation,
+clinical-note and prescription routes now coexist in the current application.
 
 ## Implemented: open a consultation
 
@@ -68,8 +69,8 @@ every clinical-note and prescription writer.
 
 Completion requires at least one existing `clinical_note` for that same encounter.
 The query reads only its ID; note content does not appear in the response, audit
-metadata or error logs. Teammate 3 owns the note-creation service and API; the
-completion service reads the shared clinical-note table.
+metadata or error logs. The note-creation service and API are now implemented;
+the completion service reads the shared clinical-note table.
 
 In the same transaction, completion:
 
@@ -107,8 +108,8 @@ or conditional update/transition conflicts also return 409. Repeated completion
 requests cannot change the end time or insert additional audit events.
 
 After commit, `assertEncounterWritable` rejects further intake, clinical-note
-and prescription writes with 409. Teammate 3's writers must call that helper
-inside their own transactions for this guarantee to hold.
+and prescription writes with 409. The current note and prescription writers use
+that shared writable-encounter contract.
 
 ## Connected doctor controls
 
@@ -124,55 +125,15 @@ changes call the open/complete APIs above, disable controls while pending and
 refresh the queue on success or failure. Polling errors disable actions until a
 fresh read succeeds. Waiting and completed entries have no transition controls.
 
-Doctor clinical-note creation and patient/history review remain owned by
-Teammate 3. Their existing prototype screens have not been connected by this
-change. The queue controls do not fabricate notes to bypass the completion rule.
+Doctor clinical-note and prescription creation are connected to active
+consultations. Record-review routes also exist. The separate `/doctor/patients`
+page still contains fixture clinical content and must not be used as evidence.
 
-## UI verification
+## Current verification boundary
 
-```powershell
-pnpm exec vitest run tests/unit/intake-form.test.ts tests/unit/workspace-read-services.test.ts tests/unit/doctor-queue-route.test.ts tests/unit/nurse-intake-page.test.ts tests/unit/clinical-workspace-render.test.ts --configLoader native --no-cache --no-fsModuleCache
-```
-
-The database suite also checks doctor-queue isolation and note-existence updates.
-The following browser walkthrough remains for SCRUM-191 with a configured test
-deployment and Teammate 3's clinical-record work:
-
-- Check in today's appointment through reception.
-- Select it from Nurse Intake; verify the selection survives a reload.
-- Verify invalid measurements do not submit and changing patients warns about drafts.
-- Save both intake sections; reload the server-verified confirmation.
-- Open the visit from the assigned doctor's dashboard.
-- Create a clinical note through Teammate 3's feature, refresh the queue, then complete.
-- Verify duplicate actions, wrong roles, unrelated doctors and writes after completion fail.
-
-## API and database verification
-
-```powershell
-pnpm exec vitest run tests/unit/consultation-open-route.test.ts tests/unit/consultation-open-service.test.ts --configLoader native --no-cache --no-fsModuleCache
-pnpm exec vitest run tests/unit/consultation-complete-route.test.ts tests/unit/consultation-complete-service.test.ts --configLoader native --no-cache --no-fsModuleCache
-pnpm exec tsc --noEmit --incremental false
-```
-
-`tests/integration/consultation.test.ts` covers actual nurse intake followed by
-opening, ownership and account checks, concurrent opens/completions, the same-visit
-note requirement, invalid workflow states, rollback on audit failure, and clinical
-write locking through completion. Note and prescription write checks simulate
-Teammate 3's shared-lock contract rather than calling unmerged feature APIs.
-It follows the existing explicit test-database
-contract: set `FOUNDATION_TEST_DATABASE_URL` or `BOOKING_TEST_DATABASE_URL` to a
-dedicated PostgreSQL test service with a role able to create databases. It creates
-and drops only its uniquely named test database and migrates only that database.
-It never falls back to the application's `DATABASE_URL`; without test credentials,
-the suite is skipped.
-
-```powershell
-pnpm exec vitest run tests/integration/consultation.test.ts --configLoader native --no-cache --no-fsModuleCache
-```
-
-## Next task
-
-Perform the final cross-track workflow verification (SCRUM-191) after the required
-branches merge and a dedicated PostgreSQL test database is configured.
-The [SCRUM-191 verification report](verification/scrum-191.md) records the completed
-519-test run with PostgreSQL and the remaining cross-track/browser checks.
+The permanent suite retains focused consultation open/completion tests. The
+[SCRUM-191 report](verification/scrum-191.md) records a historical 519-test run
+for its stated revision; those tests are no longer present in the retained suite.
+The complete browser workflow remains pending. Follow the manual sequence in the
+[demo guide](demo-guide.md) and record actual results rather than treating this
+implementation description as verification evidence.

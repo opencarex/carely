@@ -1,6 +1,7 @@
 # Nurse intake APIs (SCRUM-145)
 
-Teammate 2 branch: `feat/intake-consultation`.
+This document began as the `feat/intake-consultation` API handover. The described
+intake route and service are present in the current application.
 
 ## Implemented: GET /api/nurse/queue
 
@@ -94,30 +95,10 @@ and invalid bodies return 400; cross-origin writes return 403. All responses use
 `Cache-Control: no-store`. Unexpected failures return a generic 500 response and
 are logged without database-error details or clinical values.
 
-## Verification
+## Verification boundary
 
-```powershell
-pnpm exec vitest run tests/unit/nurse-queue-route.test.ts tests/unit/nurse-queue-service.test.ts --configLoader native --no-cache --no-fsModuleCache
-pnpm exec vitest run tests/unit/intake-schema.test.ts tests/unit/intake-route.test.ts tests/unit/intake-service.test.ts --configLoader native --no-cache --no-fsModuleCache
-pnpm exec tsc --noEmit --incremental false
-```
-
-`tests/integration/intake.test.ts` verifies the actual PostgreSQL joins, filtering,
-ordering, authored persistence, access restrictions, concurrent submissions and
-rollback when audit insertion fails. Following the existing integration suites, it
-requires `FOUNDATION_TEST_DATABASE_URL` or `BOOKING_TEST_DATABASE_URL` explicitly
-pointing to a dedicated PostgreSQL test service whose role can create databases.
-It creates and drops only its own uniquely named database, runs the migrations
-there, and never falls back to the application's `DATABASE_URL`. Without either
-test variable, the suite is skipped.
-
-```powershell
-pnpm exec vitest run tests/integration/intake.test.ts --configLoader native --no-cache --no-fsModuleCache
-```
-
-## Next task
-
-The treating doctor's open and complete actions are implemented; see
-[Consultation API](consultation.md). The nurse UI is now connected; see
-[Nurse intake interface](nurse-architecture.md). The remaining cross-track task is
-SCRUM-191 workflow verification after the clinical-record branch merges.
+The unit and integration files named in the original handover were removed during
+the approved cleanup. The current permanent suite does not directly exercise the
+full nurse API. Historical PostgreSQL evidence is recorded in
+[SCRUM-191](verification/scrum-191.md), while the current browser journey remains
+pending. See [testing](testing.md) and the [demo guide](demo-guide.md).

@@ -59,15 +59,11 @@ No schema changes or migrations are needed.
 
 ## Verification
 
-Route unit tests cover authentication, permitted and rejected roles, banned
-accounts, query validation, response shape, empty results, cache headers, and error
-handling. PostgreSQL tests in `tests/integration/booking.test.ts` cover recurring
-dates, window boundaries across a month change, Colombo midnight, session end,
-full and over-capacity dates, cancellations, completed appointments, isolation
-between doctors/dates, metadata, and inactive or missing doctors.
-
-Run `pnpm test` for unit tests. The database suite uses the opt-in isolated database
-setup documented in [Transactional appointment booking](booking-service.md#verification).
+The earlier route and PostgreSQL suites described by this handover were removed
+during the approved test cleanup. They are historical evidence, not current
+coverage. The retained 16-test suite does not directly cover this endpoint. Run
+`pnpm test` for the permanent checks and recreate focused temporary open-date
+tests before changing this behavior.
 
 [Patient UI integration, appointment listing, and cancellation](patient-ui.md) are
 implemented as responsibility 5.

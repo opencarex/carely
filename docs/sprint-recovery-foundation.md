@@ -1,5 +1,11 @@
 # Sprint recovery foundation handover
 
+> Historical handover: this file describes the foundation branch at the revision
+> named below. Later migrations and teammate branches added visit reasons, stock
+> batches, dispensing, typed medicines and the feature APIs that this document
+> calls outstanding. Use [architecture](architecture.md) and the recovery plan for
+> the current system; do not treat the remaining-work section as current status.
+
 Branch: `feat/sprint-recovery-foundation`, based on `dev` at `8061177`.
 Scope: F0?F5, F7, and security prerequisites S1/S2. No teammate feature APIs or UI are implemented here. Nothing is merged or deployed by this branch.
 

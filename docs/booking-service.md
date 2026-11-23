@@ -6,7 +6,8 @@ The [open-dates API](open-dates.md) (responsibility 4) is also implemented.
 
 ## Server contract
 
-Call `bookAppointment({ doctorId, patientId, date, actor })` from trusted server code.
+Call `bookAppointment({ doctorId, patientId, date, visitReasonId?, actor })` from
+trusted server code.
 Construct `actor` from the authenticated session, never from request JSON.
 For patient requests, resolve the patient's ID with `getOrCreatePatientForUser`
 before calling the service. Authentication at the HTTP boundary remains the caller's responsibility.
@@ -20,19 +21,20 @@ Expected failures return `{ success: false, error, code, statusCode }`; future A
 handlers must use `statusCode` for the HTTP response. Unexpected database errors
 propagate after rollback and should be handled as server errors at the API boundary.
 
-| Code                | Status | Meaning                                                                         |
-| ------------------- | ------ | ------------------------------------------------------------------------------- |
-| `INVALID_INPUT`     | 400    | Invalid UUID or calendar date                                                   |
-| `UNAUTHORIZED`      | 401    | Missing actor user ID                                                           |
-| `FORBIDDEN`         | 403    | Actor unavailable, role changed, role disallowed, or patient ownership mismatch |
-| `PATIENT_NOT_FOUND` | 404    | Staff selected a nonexistent patient                                            |
-| `DOCTOR_NOT_FOUND`  | 404    | Doctor does not exist                                                           |
-| `DOCTOR_INACTIVE`   | 400    | Doctor disabled, banned, or no longer assigned the doctor role                  |
-| `NO_ACTIVE_SESSION` | 400    | Weekday rule missing or disabled                                                |
-| `PAST_DATE`         | 400    | Date is before today in Colombo                                                 |
-| `SESSION_ENDED`     | 400    | Today's session is at or past its end time                                      |
-| `SESSION_FULL`      | 409    | Non-cancelled appointments have reached capacity                                |
-| `TOKEN_CONFLICT`    | 409    | Unique token constraint rejected the insert; caller can retry                   |
+| Code                     | Status | Meaning                                                                         |
+| ------------------------ | ------ | ------------------------------------------------------------------------------- |
+| `INVALID_INPUT`          | 400    | Invalid UUID or calendar date                                                   |
+| `UNAUTHORIZED`           | 401    | Missing actor user ID                                                           |
+| `FORBIDDEN`              | 403    | Actor unavailable, role changed, role disallowed, or patient ownership mismatch |
+| `PATIENT_NOT_FOUND`      | 404    | Staff selected a nonexistent patient                                            |
+| `DOCTOR_NOT_FOUND`       | 404    | Doctor does not exist                                                           |
+| `DOCTOR_INACTIVE`        | 400    | Doctor disabled, banned, or no longer assigned the doctor role                  |
+| `REASON_DOCTOR_MISMATCH` | 400    | Visit reason does not match the selected doctor's specialty                     |
+| `NO_ACTIVE_SESSION`      | 400    | Weekday rule missing or disabled                                                |
+| `PAST_DATE`              | 400    | Date is before today in Colombo                                                 |
+| `SESSION_ENDED`          | 400    | Today's session is at or past its end time                                      |
+| `SESSION_FULL`           | 409    | Non-cancelled appointments have reached capacity                                |
+| `TOKEN_CONFLICT`         | 409    | Unique token constraint rejected the insert; caller can retry                   |
 
 ## Transaction and clock behavior
 
@@ -51,31 +53,17 @@ propagate after rollback and should be handled as server errors at the API bound
   `max_patients` after cancellations; capacity limits the active count.
 - Records `booked_by`, the consultation fee, and source (`online` for patients;
   `reception` for receptionist/admin bookings).
+- Records `appointment.booked` in the same transaction as the appointment insert.
 - Preserves the token uniqueness constraint as a final backstop. Insert failures
   roll back the whole transaction.
 
 ## Verification
 
-`pnpm test` runs schema and service-error unit tests. Database integration tests
-are opt-in and never read the application's `DATABASE_URL` or `.env.local`.
+The current permanent suite contains two focused booking-capacity tests. It does
+not retain the earlier database integration suite. Run `pnpm test` and read
+[testing](testing.md) for the current coverage boundary.
 
-To run against a disposable PostgreSQL server, supply a connection URL for a role
-with permission to create databases. The suite creates a uniquely named test
-database, applies the repository migrations, and drops that database afterward.
-
-```powershell
-$env:BOOKING_TEST_DATABASE_URL = 'postgresql://test_user:test_password@127.0.0.1:5432/postgres'
-pnpm exec vitest run tests/integration/booking.test.ts
-Remove-Item Env:BOOKING_TEST_DATABASE_URL
-```
-
-The database suite checks real persistence, permissions, Colombo date boundaries,
-session expiry, capacity, numbering across cancellations and separate sessions,
-and transaction rollback. The last-place race holds the availability row until
-two booking requests are visibly waiting on PostgreSQL locks, then verifies one
-success and one `409` failure. Another lock-wait test advances the clock to the
-session end before releasing the lock and verifies rejection without an insert.
-
-The suite also exercises the cancellation service and owned patient appointment
-queries. See [Patient UI](patient-ui.md) for the API contracts, cancellation policy,
-and remaining queue/check-in integration.
+Historical reports may describe removed PostgreSQL suites. Recreate focused
+temporary tests when changing booking, record their exact revision and result,
+then remove them according to the recovery workflow. See [Patient UI](patient-ui.md)
+for current API integration and remaining mixed-state UI limitations.

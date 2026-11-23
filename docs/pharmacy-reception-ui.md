@@ -1,39 +1,54 @@
-﻿# Pharmacy and reception UI
+# Pharmacy and reception UI
 
-These screens follow the shared mobile-first AppShell and UI components used by nurse and admin. Pages compose layouts; interactive forms, lists and dialogs live in root components/pharmacy and components/reception folders. Mock data is kept in lib/mock/pharmacy.ts and lib/mock/reception.ts.
+The pharmacy and reception workspaces share the responsive Carely shell, but they
+are not in the same integration state. The descriptions below distinguish live
+API-backed screens from remaining prototype state.
 
-## Routes
+## Pharmacy
 
-| Role         | Route                   | UI                                                           |
-| ------------ | ----------------------- | ------------------------------------------------------------ |
-| Pharmacist   | /pharmacy               | Inventory with search and stock-edit dialog                  |
-| Pharmacist   | /pharmacy/stock         | Stock selector, edit form, health and recent changes         |
-| Pharmacist   | /pharmacy/prescriptions | Prescription search, review and full-dispensing confirmation |
-| Receptionist | /reception/register     | Existing-patient lookup and walk-in registration             |
-| Receptionist | /reception/channeling   | Patient selection and slot-booking confirmation              |
-| Receptionist | /reception/appointments | Booking lookup and arrival/check-in confirmation             |
-| Receptionist | /reception/queue        | Queue overview and queue-management dialog                   |
+| Route                     | Current behavior                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `/pharmacy`               | Loads the medicine catalogue and usable stock totals from the pharmacy API; supports medicine creation/editing |
+| `/pharmacy/stock`         | Receives stock batches and shows batch history, expiry and quantity                                            |
+| `/pharmacy/prescriptions` | Finds a prescription by UUID, shows dispensing eligibility and performs full dispensing                        |
 
-The hidden, out-of-scope Stock Requests design has been removed from pharmacy navigation and routes.
+Stock is stored in `stock_batch` rows. Totals exclude expired batches. Full
+dispensing consumes eligible catalogue stock transactionally, blocks shortages
+and duplicate dispensing, and ignores typed outside-catalogue items. Partial
+dispensing and stock requests are not implemented.
 
-## Dialogs
+The active pharmacy pages do not mount `PharmacyDemoProvider`. Prototype provider
+and workbench files may remain unused in the source tree; they are not the current
+route implementation. The pharmacy layout still displays a hardcoded example
+name rather than the authenticated user's name, so do not present that label as
+identity verification.
 
-components/ui/dialog.tsx uses the shadcn Dialog composition backed by the already installed Base UI primitives. Dialogs include a title, description and close control, trap focus while open, restore focus on close, dismiss with Escape, and scroll when content exceeds the viewport.
+Historical automated and browser evidence is recorded in
+`docs/verification/pharmacy-p1.md` through `pharmacy-p4.md`. Those reports apply to
+their stated revisions. The current permanent suite does not retain those
+temporary feature cases.
 
-## Demo behavior
+## Reception
 
-- PharmacyDemoProvider shares inventory and prescriptions between pharmacy pages. Stock edits update inventory and recent changes. Confirming a complete pending prescription reduces its medicine quantities and marks it dispensed once. Insufficient or expired stock blocks confirmation.
-- ReceptionDemoProvider shares patients, bookings, doctor-slot availability and queues between reception pages. Registration creates a demo patient ID. Booking reserves a slot without entering a queue. Separate check-in creates one queue token; checked-in and cancelled bookings cannot be checked in again.
-- Queue actions update the demo queue and its counts. Wait estimates and the initial data are fixtures, not live hospital readings. Booking dates use the Figma sample date, 12 October 2026.
-- All edits remain in React memory while navigating within the same role layout. Reloading or leaving that role resets the session. The providers do not persist to localStorage or a database and do not sync to patient, nurse, doctor or admin screens.
+| Route                     | Current behavior                                       | Integration state                           |
+| ------------------------- | ------------------------------------------------------ | ------------------------------------------- |
+| `/reception/register`     | Search existing patients and create a walk-in patient  | API-backed                                  |
+| `/reception/channeling`   | Select a patient, doctor and open date; book or cancel | API-backed                                  |
+| `/reception/queue`        | Poll a selected doctor's current queue                 | API-backed read                             |
+| `/reception/appointments` | Search and check in appointments                       | Still uses `ReceptionDemoProvider` fixtures |
 
-## Temporary provider removal
+The reception layout still mounts `ReceptionDemoProvider` and displays a hardcoded
+example receptionist identity. The provider is currently required by the
+appointments/check-in screen even though registration, channeling and queue views
+use real APIs. Therefore the reception workflow must not be described as fully
+fixture-free or fully verified end to end.
 
-The providers exist because these prototype workflows share state across several pages. They are not the intended persistence layer. Remove them once backend integration replaces all their current responsibilities:
+The server has real queue/check-in services and routes, but the active check-in
+screen is not wired to them. Final release verification must use the implemented
+server path and confirm the UI that will be demonstrated after all branches merge.
 
-1. Server-side reads load inventory, prescriptions, patients, bookings and queue entries.
-2. Validated and authorized server-side writes handle stock changes, dispensing, registration, booking and check-in. Dispensing must update quantities and prescription status atomically; booking and check-in must prevent duplicates and assign IDs/tokens on the server.
-3. URLs identify the selected patient, booking, medicine or doctor where selection must survive refresh/navigation.
-4. Successful writes refresh affected screens; forms keep only drafts, validation and feedback in local state.
+## Verification status
 
-No backend fetching, server actions, real dispensing, clinical writes or audit persistence were added by this UI update.
+No new Docker, deployment, backup, SMTP or full six-role browser result is claimed
+by this document. See [acceptance criteria](acceptance-criteria.md) and
+[demo guide](demo-guide.md) for the remaining manual work.

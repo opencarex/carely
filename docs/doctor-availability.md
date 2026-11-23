@@ -1,7 +1,7 @@
 # Doctor availability
 
-This is the first slice of sprint Track 2 (SCRUM-163), on `feat/doctor-booking`.
-It replaces the static availability preview with a recurring weekly clinic schedule.
+This feature originated on `feat/doctor-booking` for SCRUM-163. The recurring
+weekly schedule is now part of the current application.
 
 ## Behavior
 
@@ -51,7 +51,9 @@ One PostgreSQL upsert saves all submitted rules atomically using the existing `(
 
 ## Validation and manual review
 
-Unit tests cover input boundaries, API authentication and role checks, profile ownership, inactive accounts, and schedule write scoping. Service tests mock database execution; they do not prove persistence against a running PostgreSQL instance.
+The tests described by the original handover were removed during the approved
+test cleanup. The current 16-test suite does not directly cover availability.
+The walkthrough below is a procedure, not a recorded passing result.
 
 To check the complete flow with the configured database:
 

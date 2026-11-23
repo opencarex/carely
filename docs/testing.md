@@ -43,4 +43,8 @@ At the user's request, each teammate creates focused temporary feature tests, ru
 
 The dispensing checks cover successful dispensing, insufficient-stock rollback, duplicate requests and competing prescriptions. See the [SCRUM-157 verification record](verification/pharmacy-p2.md). The full six-role journey remains part of the manual release checks after the features merge. Tests are already excluded from the Docker build context, so test cleanup does not shrink the deployed app.
 
+C1/C2 audit filter, paging, authorization and transactional event evidence is
+recorded in [audit verification](verification/audit-c1-c2.md). Those temporary
+tests were removed and are not part of the 16-test regression suite.
+
 Result after cleanup: `pnpm test` - **16 passed, 0 skipped**. No database or Docker command was run for this cleanup.
