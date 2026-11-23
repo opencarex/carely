@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, exists, ne, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import type { DbExecutor } from "@/lib/db/types";
 import { user } from "@/lib/db/schema/auth";
@@ -54,36 +54,48 @@ export async function isTreatingDoctor(
   return isActiveActor({ userId: actorUserId, role: "doctor" }, executor);
 }
 
-export async function canViewClinical(
-  actor: Actor,
-  patientId: string,
-  executor: DbExecutor = db
-): Promise<boolean> {
-  if (actor.role !== "doctor" || !(await isActiveActor(actor, executor))) return false;
+export async function getActiveDoctorId(actor: Actor, executor: DbExecutor = db) {
+  if (actor.role !== "doctor" || !(await isActiveActor(actor, executor)))
+    return undefined;
   const [profile] = await executor
     .select({ id: doctor.id })
     .from(doctor)
     .where(and(eq(doctor.userId, actor.userId), eq(doctor.isActive, true)))
     .limit(1);
-  if (!profile) return false;
-  const [booking] = await executor
+  return profile?.id;
+}
+
+export function doctorCareRelationship(doctorId: string, executor: DbExecutor = db) {
+  const booking = executor
     .select({ id: appointment.id })
     .from(appointment)
     .where(
       and(
-        eq(appointment.patientId, patientId),
-        eq(appointment.doctorId, profile.id),
+        eq(appointment.patientId, patient.id),
+        eq(appointment.doctorId, doctorId),
         ne(appointment.status, "cancelled")
       )
-    )
-    .limit(1);
-  if (booking) return true;
-  const [visit] = await executor
+    );
+  const visit = executor
     .select({ id: encounter.id })
     .from(encounter)
-    .where(and(eq(encounter.patientId, patientId), eq(encounter.doctorId, profile.id)))
+    .where(and(eq(encounter.patientId, patient.id), eq(encounter.doctorId, doctorId)));
+  return or(exists(booking), exists(visit));
+}
+
+export async function canViewClinical(
+  actor: Actor,
+  patientId: string,
+  executor: DbExecutor = db
+): Promise<boolean> {
+  const doctorId = await getActiveDoctorId(actor, executor);
+  if (!doctorId) return false;
+  const [record] = await executor
+    .select({ id: patient.id })
+    .from(patient)
+    .where(and(eq(patient.id, patientId), doctorCareRelationship(doctorId, executor)))
     .limit(1);
-  return !!visit;
+  return !!record;
 }
 
 export async function canViewPatientAdmin(

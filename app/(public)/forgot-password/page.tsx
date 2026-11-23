@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { PasswordResetForm } from "@/components/auth/password-reset-form";
-import { appContent } from "@/lib/mock/content";
+import { appContent } from "@/lib/config/content";
 
 export const metadata: Metadata = { title: "Reset password" };
 

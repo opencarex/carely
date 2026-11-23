@@ -1,16 +1,17 @@
 import type { ReactNode } from "react";
-import { ReceptionDemoProvider } from "@/components/reception/reception-demo-provider";
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/workspace/app-shell";
+import { requireAuth } from "@/lib/auth-guard";
+import { getDefaultRouteForRole } from "@/lib/config/navigation";
 
-export default function ReceptionLayout({ children }: { children: ReactNode }) {
+export const instant = false;
+
+export default async function ReceptionLayout({ children }: { children: ReactNode }) {
+  const { user } = await requireAuth();
+  if (user.role !== "receptionist") redirect(getDefaultRouteForRole(user.role));
   return (
-    <ReceptionDemoProvider>
-      <AppShell
-        role="reception"
-        user={{ name: "M. Perera", detail: "Reception", initials: "RC" }}
-      >
-        {children}
-      </AppShell>
-    </ReceptionDemoProvider>
+    <AppShell role="reception" user={{ name: user.name, detail: "Receptionist" }}>
+      {children}
+    </AppShell>
   );
 }

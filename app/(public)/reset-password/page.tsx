@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { SetPasswordForm } from "@/components/auth/set-password-form";
-import { appContent } from "@/lib/mock/content";
+import { appContent } from "@/lib/config/content";
 
 export const metadata: Metadata = {
   title: "Set Password - Carely",

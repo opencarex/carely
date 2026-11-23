@@ -1,6 +1,6 @@
 # Docker deployment (SCRUM-173)
 
-The files are prepared. A container build and fresh installation have **not** been run because the user requested that Docker not be run. Keep SCRUM-173 open until the verification below passes. This packages the existing application; teammate feature code is unchanged. Rebuild after merging their changes.
+A container build and fresh installation remain **unverified**. Use the fresh-install checklist below to record the result for SCRUM-173.
 
 ## Configuration
 
@@ -19,7 +19,7 @@ By default, the app listens on localhost:3000, PostgreSQL on localhost:5432, and
 
 ## Install and start
 
-Run these only when Docker execution is authorized:
+Start the app, bootstrap the admin, and check service status.
 
 ```powershell
 docker compose --env-file .env.docker up -d --build app
@@ -29,7 +29,7 @@ docker compose --env-file .env.docker ps -a
 
 The startup sequence waits for PostgreSQL's health check, runs the migration service to successful completion, then starts Next.js. The app image uses Next's standalone output as a non-root user and includes public/static assets and the email templates read at runtime. Database tools run in the separate `tooling` build target, not in the serving container.
 
-The administrator command is explicit and can be repeated without replacing existing accounts. There is no sample-data seed. A fresh database starts with the five specialties from the historical migration and an empty medicine catalogue, stock and visit reasons. Add those through the pharmacist/admin features once those tracks are available. Existing database volumes retain their original credentials; changing the env file does not reset the database role password.
+The administrator command is explicit and can be repeated without replacing existing accounts. There is no sample-data seed. A fresh database starts with the five specialties from the historical migration and an empty medicine catalogue, stock and visit reasons. Add medicines and batches through the pharmacy workspace and visit reasons through admin configuration. Existing database volumes retain their original credentials; changing the env file does not reset the database role password.
 
 The usual `up` command includes the migration dependency. To explicitly rerun pending migrations:
 
@@ -37,7 +37,7 @@ The usual `up` command includes the migration dependency. To explicitly rerun pe
 docker compose --env-file .env.docker run --rm migrate
 ```
 
-After teammate changes merge, rebuild the application:
+Rebuild the application after code or build-time configuration changes.
 
 ```powershell
 docker compose --env-file .env.docker up -d --build app
@@ -59,14 +59,12 @@ Use a distinct `COMPOSE_PROJECT_NAME` such as `carely-fresh-check` and unoccupie
 - An invitation/reset message appears in Mailpit when the relevant flow is exercised.
 - Restarting the services preserves the administrator account and database records.
 
-Keep the command outputs, date and a screenshot with synthetic account details. Do not mark the full six-role journey passed until the teammate features merge. Diagnostics: `docker compose --env-file .env.docker logs --tail 100 app migrate postgres`. Do not publish logs containing credentials or patient values.
+Keep the command outputs, date and a screenshot with synthetic account details. Record the [six-role walkthrough](workflows.md#manual-release-walkthrough) separately from the fresh-install check. Diagnostics: `docker compose --env-file .env.docker logs --tail 100 app migrate postgres`. Do not publish logs containing credentials or patient values.
 
 See [backup and restore](backup-restore.md) for SCRUM-196.
 
 Reference: startup conditions follow the [Docker Compose startup-order documentation](https://docs.docker.com/compose/how-tos/startup-order/). Standalone packaging follows the installed Next.js guide at `node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/output.md`.
 
-## Checks completed without Docker
+## Local checks and deployment status
 
-The local Next.js production build completed successfully using disposable build credentials, and standalone output was generated. TypeScript, ESLint (two existing staff-directory warnings), YAML/Markdown formatting and PowerShell example syntax checks passed. No Docker command or container was run after the user's restriction. A local build does not verify the Linux image, service startup, database migration or fresh-install journey.
-
-Next.js 16.4.0's build checker reported a known security vulnerability. The initial build stopped for its upgrade reminder; the same build succeeded on retry while retaining the warning. A security update is recommended before deployment. Dependency versions were not changed here. The existing admin-specialties route also logged prerender interruption messages, then remained a dynamic route in the successful build; its code was not changed.
+The local Next.js production build generated standalone output. The Linux image, service startup, migrations in Compose, and fresh-install journey still require verification. The checked-in Next.js version, 16.4.0, carries a known security advisory and needs a patched release before public deployment.

@@ -1,8 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
-import { appContent } from "@/lib/mock/content";
-export function EmptyAppointments({ history = false }: { history?: boolean }) {
+export function EmptyAppointments({
+  history,
+  hospitalPhone,
+}: {
+  history: boolean;
+  hospitalPhone: string | null;
+}) {
   return (
     <div className="flex flex-col items-center gap-4 py-8 text-center sm:py-12">
       <Image
@@ -23,13 +28,19 @@ export function EmptyAppointments({ history = false }: { history?: boolean }) {
         Book an appointment
       </Link>
       <p className="text-muted-foreground text-sm">
-        Need help booking? Contact reception on{" "}
-        <a
-          className="text-primary underline"
-          href={"tel:" + appContent.hospital.phone.replace(/[^+0-9]/g, "")}
-        >
-          {appContent.hospital.phone}
-        </a>
+        Need help booking? Contact reception
+        {hospitalPhone && (
+          <>
+            {" "}
+            on{" "}
+            <a
+              className="text-primary underline"
+              href={"tel:" + hospitalPhone.replace(/[^+0-9]/g, "")}
+            >
+              {hospitalPhone}
+            </a>
+          </>
+        )}
         .
       </p>
     </div>

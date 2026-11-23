@@ -4,13 +4,16 @@ import { Card } from "@/components/ui/card";
 import { QueueStatus } from "@/components/patient/queue-status";
 import { StepGuide } from "@/components/patient/patient-shared";
 import { PageTitle } from "@/components/workspace/workspace-ui";
-import { appContent } from "@/lib/mock/content";
+import { getHospitalContact } from "@/lib/services/settings";
 import { requireRole } from "@/lib/auth-guard";
 import { getPatientAppointments } from "@/lib/services/patient-booking";
 export const metadata: Metadata = { title: "Live Queue" };
 export default async function PatientQueuePage() {
   const session = await requireRole("patient");
-  const appointments = await getPatientAppointments(session.user.id);
+  const [appointments, hospital] = await Promise.all([
+    getPatientAppointments(session.user.id),
+    getHospitalContact(),
+  ]);
   return (
     <>
       <PageTitle
@@ -55,12 +58,14 @@ export default async function PatientQueuePage() {
             <p className="text-muted-foreground mt-2 text-sm">
               Contact reception if you miss your turn or need help checking in.
             </p>
-            <a
-              className="text-primary mt-3 inline-block text-sm font-semibold"
-              href={"tel:" + appContent.hospital.phone.replace(/[^+0-9]/g, "")}
-            >
-              {appContent.hospital.phone}
-            </a>
+            {hospital.phone && (
+              <a
+                className="text-primary mt-3 inline-block text-sm font-semibold"
+                href={"tel:" + hospital.phone.replace(/[^+0-9]/g, "")}
+              >
+                {hospital.phone}
+              </a>
+            )}
           </div>
         </Card>
       </div>

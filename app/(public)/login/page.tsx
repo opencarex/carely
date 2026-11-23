@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { LoginForm } from "@/components/auth/login-form";
-import { loginDefaultValues } from "@/lib/mock/auth";
-import { appContent } from "@/lib/mock/content";
+
+import { appContent } from "@/lib/config/content";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -22,7 +22,7 @@ export default function LoginPage() {
         title="Welcome back"
         description="Sign in to view your appointments, queue position, and prescriptions."
       >
-        <LoginForm defaultValues={loginDefaultValues} />
+        <LoginForm defaultValues={{ email: "", password: "", rememberMe: false }} />
       </AuthCard>
     </AuthShell>
   );

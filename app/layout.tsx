@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import { appContent } from "@/lib/mock/content";
+import { appContent } from "@/lib/config/content";
 import "./globals.css";
 
 const inter = Inter({
@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: { default: appContent.brand.name, template: `%s | ${appContent.brand.name}` },
-  description: `${appContent.portal.title} powered by ${appContent.brand.name}.`,
+  description: appContent.portal.description,
   applicationName: appContent.brand.name,
 };
 

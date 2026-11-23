@@ -1,6 +1,6 @@
 # Backup and restore rehearsal (SCRUM-196)
 
-This procedure is prepared but **has not been executed**. Docker execution was prohibited for this work, and PostgreSQL client tools were not found on the host PATH. SCRUM-196 remains open until a real backup, throwaway restore and screenshot are recorded.
+The backup and restore procedure remains **unverified**. Record a backup, a restore into a throwaway database, and the evidence below for SCRUM-196.
 
 These PowerShell commands target the Compose-managed Carely database from [deployment.md](deployment.md). They do not back up the separate Supabase development database automatically. For that database, use an installed PostgreSQL client with its connection settings; use the same archive options and a separate, empty restore database. Select only the Carely `public` and Drizzle migration schemas, not Supabase's platform schemas.
 

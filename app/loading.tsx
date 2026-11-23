@@ -1,4 +1,4 @@
-import { appContent } from "@/lib/mock/content";
+import { appContent } from "@/lib/config/content";
 
 export default function Loading() {
   return (

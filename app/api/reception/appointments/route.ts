@@ -4,8 +4,37 @@ import {
   receptionHeaders,
   requireReceptionSession,
 } from "@/lib/reception-http";
-import { receptionBookingSchema } from "@/lib/schemas/reception";
+import { requireAppointmentSession } from "@/lib/appointment-http";
+import {
+  receptionAppointmentSearchSchema,
+  receptionBookingSchema,
+} from "@/lib/schemas/reception";
 import { bookAppointment } from "@/lib/services/booking";
+import { listReceptionAppointments } from "@/lib/services/reception";
+
+export async function GET(request: Request) {
+  try {
+    const session = await requireAppointmentSession(request, ["receptionist"]);
+    const search = new URL(request.url).searchParams;
+    const parsed = receptionAppointmentSearchSchema.safeParse({
+      q: search.get("q") ?? undefined,
+      page: search.get("page") ?? undefined,
+    });
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Provide a valid booking search and page number." },
+        { status: 400, headers: receptionHeaders }
+      );
+    }
+    const result = await listReceptionAppointments(parsed.data, {
+      userId: session.user.id,
+      role: session.user.role,
+    });
+    return NextResponse.json(result, { headers: receptionHeaders });
+  } catch (error) {
+    return receptionError(error);
+  }
+}
 
 export async function POST(request: Request) {
   try {

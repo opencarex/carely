@@ -1,6 +1,8 @@
 import Image from "next/image";
-import type { ReactNode } from "react";
-import { appContent } from "@/lib/mock/content";
+import { Suspense, type ReactNode } from "react";
+import { appContent, DEFAULT_HOSPITAL_NAME } from "@/lib/config/content";
+import { getHospitalContact } from "@/lib/services/settings";
+import { unstable_rethrow } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 type AuthShellProps = {
@@ -14,6 +16,17 @@ type AuthShellProps = {
   children: ReactNode;
   compactOnMobile?: boolean;
 };
+
+async function HospitalPortalName() {
+  try {
+    const hospital = await getHospitalContact();
+    return `${hospital.name} patient portal`;
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Could not load the hospital name for the sign-in screen.");
+    return `${DEFAULT_HOSPITAL_NAME} patient portal`;
+  }
+}
 
 function AuthShell({ artwork, children }: AuthShellProps) {
   return (
@@ -61,7 +74,11 @@ function AuthShell({ artwork, children }: AuthShellProps) {
         </div>
 
         <div className="bg-carely-primary-deep/90 max-w-md space-y-1.5 rounded-xl border border-white/10 px-4 py-3.5 sm:px-5 sm:py-4">
-          <p className="text-sm font-semibold">{appContent.portal.title}</p>
+          <p className="text-sm font-semibold">
+            <Suspense fallback={appContent.brand.patientPortal}>
+              <HospitalPortalName />
+            </Suspense>
+          </p>
           <p className="text-carely-primary-soft text-xs leading-relaxed font-normal">
             {appContent.portal.instanceNote}
           </p>

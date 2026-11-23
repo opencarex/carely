@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { patientMedicines } from "@/lib/mock/patient";
+
 import Link from "next/link";
 import { formatPatientDate } from "@/lib/patient-appointments";
 import { requireRole } from "@/lib/auth-guard";
@@ -8,12 +8,21 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FactCard, StatusBadge } from "@/components/patient/patient-shared";
 import { DataList, PageTitle, Panel } from "@/components/workspace/workspace-ui";
-import { appContent, demoPeople } from "@/lib/mock/content";
+import { appContent } from "@/lib/config/content";
+import { getPatientPrescriptionSummary } from "@/lib/services/prescription";
 import { cn } from "@/lib/utils";
+
+const prescriptionDate = new Intl.DateTimeFormat("en-LK", {
+  dateStyle: "medium",
+  timeZone: "Asia/Colombo",
+});
 
 export default async function PatientPage() {
   const session = await requireRole("patient");
-  const appointments = await getPatientAppointments(session.user.id);
+  const [appointments, { latest, pendingCount }] = await Promise.all([
+    getPatientAppointments(session.user.id),
+    getPatientPrescriptionSummary({ userId: session.user.id, role: session.user.role }),
+  ]);
   const upcoming = appointments.filter((item) => item.isUpcoming);
   const next = upcoming[0];
   return (
@@ -111,8 +120,16 @@ export default async function PatientPage() {
             val: String(upcoming.length),
             status: next ? formatPatientDate(next.date) : "Book a visit",
           },
-          { label: "Pending prescriptions", val: "1", status: "View details" },
-          { label: "Profile status", val: "Complete", status: "Email verified" },
+          {
+            label: "Awaiting pharmacy dispensing",
+            val: String(pendingCount),
+            status: pendingCount ? "Issued" : "None",
+          },
+          {
+            label: "Email status",
+            val: session.user.emailVerified ? "Verified" : "Unverified",
+            status: "Patient account",
+          },
         ].map((item, index) => (
           <Card key={item.label} className="min-h-28 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -158,20 +175,35 @@ export default async function PatientPage() {
 
         <Panel
           title="Latest prescription"
-          action={<StatusBadge tone="blue">Pending</StatusBadge>}
+          action={
+            latest && (
+              <StatusBadge tone={latest.status === "dispensed" ? "green" : "blue"}>
+                {latest.status === "dispensed" ? "Dispensed" : "Issued"}
+              </StatusBadge>
+            )
+          }
           className="p-5 sm:p-6"
         >
-          <p className="text-muted-foreground mb-4 text-sm">
-            Issued by {demoPeople.primaryDoctor.name} · 04 Oct 2026
-          </p>
-          <DataList
-            variant="action"
-            items={patientMedicines.slice(0, 2).map((med) => ({
-              title: `${med.name} ${med.form.replace(" capsule", "").replace(" tablet", "")}`,
-              subtitle: med.dose,
-              meta: "RX",
-            }))}
-          />
+          {latest ? (
+            <>
+              <p className="text-muted-foreground mb-4 text-sm">
+                Issued by {latest.doctorName} ·{" "}
+                {prescriptionDate.format(new Date(latest.createdAt))}
+              </p>
+              <DataList
+                variant="action"
+                items={latest.items.slice(0, 2).map((item) => ({
+                  title: [item.name, item.strength].filter(Boolean).join(" "),
+                  subtitle: `${item.dosage} · ${item.frequency}`,
+                  meta: "RX",
+                }))}
+              />
+            </>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              No prescriptions have been issued yet.
+            </p>
+          )}
           <Link
             className={cn(
               buttonVariants({ variant: "outline", size: "sm", fullWidth: true }),

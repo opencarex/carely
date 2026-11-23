@@ -1,6 +1,20 @@
-import { and, asc, eq, gte, inArray, sql, sum } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  gte,
+  inArray,
+  isNotNull,
+  sql,
+  sum,
+} from "drizzle-orm";
 import { colomboNow } from "@/lib/clinic-time";
 import { db } from "@/lib/db";
+import { user } from "@/lib/db/schema/auth";
+import { doctor } from "@/lib/db/schema/doctor";
 import { medicine } from "@/lib/db/schema/medicine";
 import { patient } from "@/lib/db/schema/patient";
 import { prescriptionItem } from "@/lib/db/schema/prescription-item";
@@ -237,7 +251,7 @@ export async function getPrescription(input: {
   return { ...view, dispensing: await getDispensingEligibility(view) };
 }
 
-export async function getPatientPrescriptions(actor: Actor): Promise<PrescriptionView[]> {
+async function findPatientPrescriptionOwner(actor: Actor) {
   if (actor.role !== "patient") {
     throw new ServiceError(
       "Only patients can access their prescriptions.",
@@ -251,6 +265,65 @@ export async function getPatientPrescriptions(actor: Actor): Promise<Prescriptio
     .from(patient)
     .where(eq(patient.userId, actor.userId))
     .limit(1);
+  return profile;
+}
+
+export async function getPatientPrescriptionSummary(actor: Actor) {
+  const profile = await findPatientPrescriptionOwner(actor);
+  if (!profile) return { pendingCount: 0, latest: null };
+  const belongsToPatient = eq(encounter.patientId, profile.id);
+  const [pendingRows, [latest]] = await Promise.all([
+    db
+      .select({ total: count() })
+      .from(prescription)
+      .innerJoin(encounter, eq(prescription.encounterId, encounter.id))
+      .where(
+        and(
+          belongsToPatient,
+          eq(prescription.status, "issued"),
+          exists(
+            db
+              .select({ id: prescriptionItem.id })
+              .from(prescriptionItem)
+              .where(
+                and(
+                  eq(prescriptionItem.prescriptionId, prescription.id),
+                  isNotNull(prescriptionItem.medicineId)
+                )
+              )
+          )
+        )
+      ),
+    db
+      .select({
+        id: prescription.id,
+        encounterId: prescription.encounterId,
+        doctorId: prescription.doctorId,
+        doctorName: user.name,
+        status: prescription.status,
+        createdAt: prescription.createdAt,
+      })
+      .from(prescription)
+      .innerJoin(encounter, eq(prescription.encounterId, encounter.id))
+      .innerJoin(doctor, eq(prescription.doctorId, doctor.id))
+      .innerJoin(user, eq(doctor.userId, user.id))
+      .where(belongsToPatient)
+      .orderBy(desc(prescription.createdAt), desc(prescription.id))
+      .limit(1),
+  ]);
+  return {
+    pendingCount: pendingRows[0]?.total ?? 0,
+    latest: latest
+      ? {
+          ...toPrescriptionView(latest, await getItems(latest.id)),
+          doctorName: latest.doctorName,
+        }
+      : null,
+  };
+}
+
+export async function getPatientPrescriptions(actor: Actor): Promise<PrescriptionView[]> {
+  const profile = await findPatientPrescriptionOwner(actor);
   if (!profile) throw new ServiceError("Patient record not found.", 404, "NOT_FOUND");
   const headers = await db
     .select({

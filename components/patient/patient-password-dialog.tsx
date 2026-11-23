@@ -11,40 +11,63 @@ import {
   DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog";
+import { authClient } from "@/lib/auth-client";
+import { newPasswordSchema } from "@/lib/schemas/auth";
+
 export function PatientPasswordDialog() {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
-  const [checked, setChecked] = useState(false);
-  function submit(event: FormEvent) {
+  const [saved, setSaved] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
     setError("");
-    setChecked(false);
-    if (next.length < 8) {
-      setError("New password must be at least 8 characters long.");
+    setSaved(false);
+    const parsed = newPasswordSchema.safeParse({
+      password: next,
+      confirmPassword: confirmation,
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0].message);
       return;
     }
-    if (next !== confirmation) {
-      setError("Passwords do not match.");
-      return;
+    setPending(true);
+    try {
+      const result = await authClient.changePassword({
+        currentPassword: current,
+        newPassword: parsed.data.password,
+        revokeOtherSessions: true,
+      });
+      if (result.error)
+        throw new Error(result.error.message ?? "Unable to update your password.");
+      setSaved(true);
+      setCurrent("");
+      setNext("");
+      setConfirmation("");
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Unable to update your password."
+      );
+    } finally {
+      setPending(false);
     }
-    setChecked(true);
-    setCurrent("");
-    setNext("");
-    setConfirmation("");
   }
   return (
     <Dialog
       open={open}
       onOpenChange={(value) => {
+        if (pending) return;
         setOpen(value);
         setCurrent("");
         setNext("");
         setConfirmation("");
         setError("");
-        setChecked(false);
+        setSaved(false);
       }}
     >
       <DialogTrigger render={<Button variant="outline" size="sm" className="mt-4" />}>
@@ -54,8 +77,8 @@ export function PatientPasswordDialog() {
         <DialogHeader>
           <DialogTitle>Change password</DialogTitle>
           <DialogDescription>
-            Check your new password details. Password changes are not connected in this
-            demo.
+            Enter your current password and choose a new one. Other devices will be signed
+            out.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
@@ -94,14 +117,20 @@ export function PatientPasswordDialog() {
               {error}
             </p>
           )}
-          {checked && (
+          {saved && (
             <p role="status" className="text-carely-success text-sm">
-              Password form checked. Your account password has not changed.
+              Your password has been updated.
             </p>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit">Update password</Button>
-            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Updating..." : "Update password"}
+            </Button>
+            <DialogClose
+              render={<Button type="button" variant="outline" disabled={pending} />}
+            >
+              {saved ? "Close" : "Cancel"}
+            </DialogClose>
           </div>
         </form>
       </DialogContent>

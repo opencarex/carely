@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,7 @@ import { Panel } from "@/components/workspace/workspace-ui";
 type Settings = { hospitalName: string; address: string | null; phone: string | null; email: string | null };
 
 export function HospitalDetailsForm() {
+  const router = useRouter();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -23,6 +25,7 @@ export function HospitalDetailsForm() {
     const data: { settings?: Settings; error?: string } = await response.json();
     if (!response.ok || !data.settings) { setError(data.error ?? "Unable to save hospital details."); return; }
     setSettings(data.settings); setMessage("Hospital details saved.");
+    router.refresh();
   }
   return <Panel title="Hospital Details" className="min-w-0">
     {!settings ? <p className="text-muted-foreground text-sm">Loading hospital details...</p> : <form onSubmit={save} className="space-y-5">

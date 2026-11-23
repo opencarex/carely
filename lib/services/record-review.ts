@@ -1,10 +1,13 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { appointment } from "@/lib/db/schema/appointment";
 import { clinicalNote } from "@/lib/db/schema/clinical-note";
 import { encounter } from "@/lib/db/schema/encounter";
+import { medicine } from "@/lib/db/schema/medicine";
+import { patient } from "@/lib/db/schema/patient";
 import { preliminaryNote } from "@/lib/db/schema/preliminary-note";
 import { prescription } from "@/lib/db/schema/prescription";
+import { prescriptionItem } from "@/lib/db/schema/prescription-item";
 import { queueEntry } from "@/lib/db/schema/queue-entry";
 import { vitals } from "@/lib/db/schema/vitals";
 import {
@@ -15,7 +18,8 @@ import {
 } from "@/lib/schemas/record-review";
 import {
   assertActiveActor,
-  canViewClinical,
+  doctorCareRelationship,
+  getActiveDoctorId,
   isTreatingDoctor,
   type Actor,
 } from "./access-policy";
@@ -93,6 +97,44 @@ export async function getDoctorVisit(input: {
   };
 }
 
+const PATIENTS_PAGE_SIZE = 25;
+const patientSummary = {
+  id: patient.id,
+  fullName: patient.fullName,
+  patientNo: patient.patientNo,
+};
+
+export async function listDoctorPatients(input: {
+  actor: Actor;
+  search: string;
+  page: number;
+}) {
+  assertDoctor(input.actor);
+  const doctorId = await getActiveDoctorId(input.actor);
+  if (!doctorId)
+    throw new ServiceError("Doctor profile is unavailable.", 404, "NOT_FOUND");
+  const pattern = `%${input.search.replace(/[\\%_]/g, "\\$&")}%`;
+  const rows = await db
+    .select(patientSummary)
+    .from(patient)
+    .where(
+      and(
+        doctorCareRelationship(doctorId),
+        input.search
+          ? or(ilike(patient.fullName, pattern), ilike(patient.patientNo, pattern))
+          : undefined
+      )
+    )
+    .orderBy(asc(patient.fullName), asc(patient.id))
+    .limit(PATIENTS_PAGE_SIZE + 1)
+    .offset((input.page - 1) * PATIENTS_PAGE_SIZE);
+
+  return {
+    patients: rows.slice(0, PATIENTS_PAGE_SIZE),
+    hasMore: rows.length > PATIENTS_PAGE_SIZE,
+  };
+}
+
 export async function getPatientHistory(input: {
   patientId: string;
   actor: Actor;
@@ -103,9 +145,14 @@ export async function getPatientHistory(input: {
   ) {
     throw new ServiceError("Invalid patient identifier.", 400, "INVALID_ID");
   }
-  if (!(await canViewClinical(input.actor, input.patientId))) {
-    throw new ServiceError("Patient history not found.", 404, "NOT_FOUND");
-  }
+  const doctorId = await getActiveDoctorId(input.actor);
+  if (!doctorId) throw new ServiceError("Patient history not found.", 404, "NOT_FOUND");
+  const [record] = await db
+    .select(patientSummary)
+    .from(patient)
+    .where(and(eq(patient.id, input.patientId), doctorCareRelationship(doctorId)))
+    .limit(1);
+  if (!record) throw new ServiceError("Patient history not found.", 404, "NOT_FOUND");
   const visits = await db
     .select({
       id: encounter.id,
@@ -119,7 +166,7 @@ export async function getPatientHistory(input: {
     .orderBy(desc(encounter.startedAt), desc(encounter.id));
   const encounters = await Promise.all(
     visits.map(async (visit) => {
-      const [notes, prescriptions] = await Promise.all([
+      const [notes, prescriptions, [recordedVitals]] = await Promise.all([
         db
           .select({
             id: clinicalNote.id,
@@ -138,7 +185,40 @@ export async function getPatientHistory(input: {
           .from(prescription)
           .where(eq(prescription.encounterId, visit.id))
           .orderBy(asc(prescription.createdAt), asc(prescription.id)),
+        db
+          .select({
+            bpSystolic: vitals.bpSystolic,
+            bpDiastolic: vitals.bpDiastolic,
+            heartRate: vitals.heartRate,
+            spo2: vitals.spo2,
+            temperatureC: vitals.temperatureC,
+            recordedAt: vitals.recordedAt,
+          })
+          .from(vitals)
+          .where(eq(vitals.encounterId, visit.id))
+          .orderBy(desc(vitals.recordedAt), desc(vitals.id))
+          .limit(1),
       ]);
+      const items = prescriptions.length
+        ? await db
+            .select({
+              id: prescriptionItem.id,
+              prescriptionId: prescriptionItem.prescriptionId,
+              name: sql<string>`coalesce(${prescriptionItem.medicineName}, ${medicine.name})`,
+              strength: medicine.strength,
+              dosage: prescriptionItem.dosage,
+              frequency: prescriptionItem.frequency,
+            })
+            .from(prescriptionItem)
+            .leftJoin(medicine, eq(prescriptionItem.medicineId, medicine.id))
+            .where(
+              inArray(
+                prescriptionItem.prescriptionId,
+                prescriptions.map(({ id }) => id)
+              )
+            )
+            .orderBy(asc(prescriptionItem.id))
+        : [];
       return {
         id: visit.id,
         startedAt: visit.startedAt.toISOString(),
@@ -147,12 +227,24 @@ export async function getPatientHistory(input: {
           ...note,
           createdAt: note.createdAt.toISOString(),
         })),
+        vitals: recordedVitals
+          ? { ...recordedVitals, recordedAt: recordedVitals.recordedAt.toISOString() }
+          : null,
         prescriptions: prescriptions.map((item) => ({
           ...item,
           createdAt: item.createdAt.toISOString(),
+          items: items
+            .filter(({ prescriptionId }) => prescriptionId === item.id)
+            .map(({ id, name, strength, dosage, frequency }) => ({
+              id,
+              name,
+              strength,
+              dosage,
+              frequency,
+            })),
         })),
       };
     })
   );
-  return { patientId: input.patientId, encounters };
+  return { patientId: input.patientId, patient: record, encounters };
 }

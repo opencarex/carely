@@ -1,3 +1,4 @@
+import { unstable_rethrow } from "next/navigation";
 import { NextResponse } from "next/server";
 import { AuthError, requireRole } from "@/lib/auth-guard";
 import { doctorFinderQuerySchema } from "@/lib/schemas/admin-config";
@@ -17,6 +18,7 @@ export async function GET(request: Request) {
     const doctors = await findDoctorsForReason(parsed.data.reasonId);
     return NextResponse.json({ doctors, ...(doctors.length ? {} : { message: "No active doctors are available for this reason." }) }, { headers });
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof AuthError || error instanceof ServiceError) return NextResponse.json({ error: error.message, ...(error instanceof ServiceError ? { code: error.code } : {}) }, { status: error.statusCode, headers });
     console.error("GET /api/patient/doctor-finder error:", error);
     return NextResponse.json({ error: "Unable to find doctors. Please try again." }, { status: 500, headers });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { bookAppointmentSchema } from "@/lib/schemas/booking";
+import type { QueueStatus } from "@/lib/schemas/queue";
 
 const optionalText = (maxLength: number) =>
   z
@@ -40,6 +41,29 @@ export const patientSearchSchema = z.object({
 export const receptionPatientIdSchema = z.object({ id: z.uuid("Invalid patient ID") });
 
 export const receptionBookingSchema = bookAppointmentSchema.strict();
+
+export const receptionAppointmentSearchSchema = z.object({
+  q: z.string().trim().max(120).default(""),
+  page: z.coerce.number().int().min(1).max(10_000).default(1),
+});
+
+export type ReceptionAppointmentSearch = z.infer<typeof receptionAppointmentSearchSchema>;
+
+export type ReceptionAppointment = {
+  id: string;
+  patientName: string;
+  patientNo: string;
+  doctorName: string;
+  date: string;
+  appointmentNo: number;
+  status: string;
+  queueStatus: QueueStatus | null;
+};
+
+export type ReceptionAppointmentSearchResponse = {
+  appointments: ReceptionAppointment[];
+  hasMore: boolean;
+};
 
 export type CreateWalkInPatientInput = z.infer<typeof createWalkInPatientSchema>;
 

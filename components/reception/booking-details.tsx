@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -13,106 +13,100 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import type { ReceptionBooking, ReceptionDoctor } from "@/lib/mock/reception";
+import { appointmentStatus, formatPatientDate } from "@/lib/patient-appointments";
+import type { ReceptionAppointment } from "@/lib/schemas/reception";
+
+export function bookingStatus(booking: ReceptionAppointment) {
+  if (booking.status === "booked" && booking.queueStatus) return "Checked in";
+  return appointmentStatus(booking.status);
+}
 
 export function BookingDetails({
   booking,
-  doctor,
-  onCheckIn,
+  onCheckedIn,
 }: {
-  booking: ReceptionBooking;
-  doctor: ReceptionDoctor;
-  onCheckIn: (bookingId: string) => string | null;
+  booking: ReceptionAppointment;
+  onCheckedIn: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
-  const [message, setMessage] = useState("");
+  const [pending, setPending] = useState(false);
+  const [checkedIn, setCheckedIn] = useState(false);
+  const [error, setError] = useState("");
+  const canCheckIn = booking.status === "booked" && !booking.queueStatus && !checkedIn;
+
+  async function checkIn() {
+    if (pending || !canCheckIn) return;
+    setPending(true);
+    setError("");
+    try {
+      const response = await fetch("/api/queue/check-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId: booking.id }),
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? "Unable to check in this appointment.");
+      }
+      setCheckedIn(true);
+      setOpen(false);
+      await onCheckedIn();
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Unable to check in this appointment."
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <>
-      <Badge
-        className={
-          booking.status === "Checked in"
-            ? "bg-carely-success-soft text-carely-success"
-            : ""
-        }
-      >
-        {booking.status}
+      <Badge>
+        {checkedIn && booking.status === "booked" ? "Checked in" : bookingStatus(booking)}
       </Badge>
       <h3 className="mt-4 font-semibold">
-        {booking.patientName} &middot; {booking.patientId}
+        {booking.patientName} · {booking.patientNo}
       </h3>
-      <p className="mt-3 text-sm">
-        {doctor.name} &middot; {doctor.specialty}
+      <p className="mt-2 text-sm">
+        {booking.doctorName} · {formatPatientDate(booking.date)}
       </p>
-      <p className="text-muted-foreground mt-1 text-sm">
-        {booking.date} &middot; {booking.time} &middot; {doctor.room}
+      <p className="mt-2 text-sm">Appointment #{booking.appointmentNo}</p>
+      <p className="text-muted-foreground mt-1 text-xs break-all">
+        Reference {booking.id}
       </p>
-      <div className="bg-carely-surface mt-5 rounded-xl p-4">
-        <h4 className="text-sm font-semibold">Payment at the hospital</h4>
-        <p className="text-muted-foreground mt-2 text-sm">
-          If a fee applies, use the hospital&apos;s existing payment process. Carely does
-          not record payment.
-        </p>
-      </div>
-      {booking.token && (
-        <p className="text-primary mt-4 text-sm font-semibold">
-          Queue token: {booking.token}
-        </p>
+      {canCheckIn && (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger render={<Button className="mt-5" />}>
+            Check in patient
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Check in patient</DialogTitle>
+              <DialogDescription>
+                Add {booking.patientName} to {booking.doctorName}’s live queue for
+                appointment #{booking.appointmentNo}.
+              </DialogDescription>
+            </DialogHeader>
+            {error && (
+              <p role="alert" className="text-destructive text-sm">
+                {error}
+              </p>
+            )}
+            <DialogFooter>
+              <DialogClose render={<Button variant="outline" disabled={pending} />}>
+                Cancel
+              </DialogClose>
+              <Button disabled={pending} onClick={() => void checkIn()}>
+                {pending ? "Checking in..." : "Confirm check-in"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger
-          render={
-            <Button
-              className="mt-5 w-full sm:w-auto"
-              disabled={booking.status !== "Booked"}
-            />
-          }
-        >
-          Check In Patient
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Check in patient</DialogTitle>
-            <DialogDescription>
-              Confirm the patient has arrived. Check-in creates one queue entry for the
-              booked doctor.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 text-sm">
-            <p className="font-semibold">
-              {booking.patientName} &middot; {booking.patientId}
-            </p>
-            <p>
-              {booking.id} &middot; {booking.time}
-            </p>
-            <p>
-              {doctor.name} &middot; {doctor.room}
-            </p>
-          </div>
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
-            <Button
-              disabled={booking.status !== "Booked"}
-              onClick={() => {
-                const token = onCheckIn(booking.id);
-                setOpen(false);
-                setMessage(
-                  token
-                    ? `Patient checked in. Queue token: ${token}`
-                    : "This booking cannot be checked in again."
-                );
-              }}
-            >
-              Confirm check-in
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <p className="text-muted-foreground mt-4 text-xs">
-        Cancelled or already checked-in bookings cannot be checked in again.
-      </p>
-      {message && (
+      {checkedIn && (
         <p role="status" className="text-primary mt-4 text-sm">
-          {message}
+          Patient added to the live queue.
         </p>
       )}
     </>

@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/workspace/app-shell";
 import { auth } from "@/lib/auth";
-import { appContent } from "@/lib/mock/content";
 
 export const instant = false;
 
@@ -33,7 +32,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       role="admin"
       user={{
         name: session.user.name || "System Admin",
-        detail: appContent.hospital.name,
+        detail: "Administrator",
         initials: getInitials(session.user.name || "System Admin"),
       }}
     >

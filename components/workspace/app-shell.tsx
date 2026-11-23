@@ -3,12 +3,13 @@ import { LogoutButton } from "@/components/auth/logout-button";
 import { Avatar } from "@/components/ui/avatar";
 import { MobileNavigation, NavLinks } from "@/components/workspace/nav-links";
 import { roleNavigation } from "@/lib/config/navigation";
-import { appContent } from "@/lib/mock/content";
+import { appContent } from "@/lib/config/content";
+import { getHospitalContact } from "@/lib/services/settings";
 
 type AppShellProps = {
   children: ReactNode;
   role: keyof typeof roleNavigation;
-  user: { name: string; detail: string; initials: string };
+  user: { name: string; detail: string; initials?: string };
 };
 
 const workspaceNames: Record<string, string> = {
@@ -34,24 +35,42 @@ function Brand() {
   );
 }
 
-function HospitalCard() {
+function initials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
+const clinicDate = new Intl.DateTimeFormat("en-LK", {
+  dateStyle: "full",
+  timeZone: "Asia/Colombo",
+});
+
+function HospitalCard({ name }: { name: string }) {
   return (
     <div className="bg-carely-surface flex items-center gap-3 rounded-lg border p-3">
       <span className="bg-secondary text-primary grid size-8 place-items-center rounded-md text-xs font-bold">
-        {appContent.hospital.initials}
+        {initials(name)}
       </span>
       <div>
-        <p className="text-xs font-semibold">{appContent.hospital.name}</p>
-        <p className="text-muted-foreground text-xs">
-          {appContent.hospital.serviceLabel}
-        </p>
+        <p className="text-xs font-semibold">{name}</p>
+        <p className="text-muted-foreground text-xs">Patient services</p>
       </div>
     </div>
   );
 }
 
-function AppShell({ children, role, user }: AppShellProps) {
+async function AppShell({ children, role, user: account }: AppShellProps) {
   const patient = role === "patient";
+  const hospital = await getHospitalContact();
+  const user = {
+    ...account,
+    initials: account.initials ?? (initials(account.name) || "CA"),
+  };
 
   const sidebar = (
     <aside
@@ -72,7 +91,7 @@ function AppShell({ children, role, user }: AppShellProps) {
         </div>
       )}
       <div className="mt-4">
-        <HospitalCard />
+        <HospitalCard name={hospital.name} />
       </div>
       <p className="text-muted-foreground mt-6 mb-2 text-xs font-semibold uppercase">
         {patient ? "My care" : "Navigation"}
@@ -114,7 +133,7 @@ function AppShell({ children, role, user }: AppShellProps) {
             {appContent.brand.patientPortal}
           </p>
         )}
-        <p className="text-xs font-medium">Thursday, 8 October 2026</p>
+        <p className="text-xs font-medium">{clinicDate.format(new Date())}</p>
       </div>
       <div className="flex items-center gap-3 rounded-lg border px-3 py-2">
         <Avatar alt={user.name} fallback={user.initials} size={34} />
