@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { FactCard } from "@/components/patient/patient-shared";
+import { LoadingRows } from "@/components/workspace/loading-skeleton";
 import { formatPatientDate } from "@/lib/patient-appointments";
 import type { PatientAppointmentView } from "@/lib/schemas/booking";
 import type { PatientQueueStatusResponse } from "@/lib/schemas/queue";
@@ -20,7 +21,9 @@ export function QueueStatus({ appointment }: { appointment?: PatientAppointmentV
           ? "Your checked-in visit"
           : appointment
             ? "Your next visit"
-            : "No upcoming appointments"}
+            : loading || error
+              ? "Queue status"
+              : "No upcoming appointments"}
       </h2>
       {visit && (
         <>
@@ -42,15 +45,19 @@ export function QueueStatus({ appointment }: { appointment?: PatientAppointmentV
               : `Your current position: ${data.entry.position}`}
           </p>
         </div>
-      ) : (
+      ) : loading ? (
+        <LoadingRows
+          label="Checking your queue status…"
+          count={1}
+          rowClassName="bg-carely-surface border-0"
+        />
+      ) : !error ? (
         <p className="text-muted-foreground text-sm">
-          {loading
-            ? "Checking your queue status..."
-            : "Check in at reception when you arrive."}
+          Check in at reception when you arrive.
         </p>
-      )}
+      ) : null}
       {error && (
-        <p role="status" className="text-destructive text-sm">
+        <p role="alert" className="text-destructive text-sm">
           {error}
         </p>
       )}

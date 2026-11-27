@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { BookingCalendar, capacityLabel } from "@/components/patient/booking-calendar";
 import { FactCard } from "@/components/patient/patient-shared";
+import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingSkeleton } from "@/components/workspace/loading-skeleton";
 import { formatPatientDate, formatSession } from "@/lib/patient-appointments";
 import type {
   BookAppointmentResult,
@@ -111,46 +113,55 @@ export function AppointmentBooking({
           {doctor.specialtyName ?? "General clinic"}
         </p>
       </div>
-      {loading ? (
-        <p role="status">Loading available dates...</p>
-      ) : loadError ? (
+      {loading && !availability && (
+        <LoadingSkeleton label="Loading available dates…">
+          <div className="bg-card w-full max-w-md space-y-3 rounded-xl border p-3">
+            <Skeleton className="mx-auto h-5 w-28" />
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 28 }, (_, day) => (
+                <Skeleton key={day} className="aspect-square w-full" />
+              ))}
+            </div>
+          </div>
+        </LoadingSkeleton>
+      )}
+      {loadError && (
         <p role="alert" className="text-destructive text-sm">
           {loadError}
         </p>
-      ) : (
-        availability && (
-          <fieldset className="min-w-0 space-y-3">
-            <legend className="mb-2 text-sm font-semibold">Choose a clinic date</legend>
-            <p className="text-muted-foreground text-sm">
-              Booking is open for the next 14 days, including today.
-            </p>
-            <BookingCalendar
-              availability={availability}
-              selectedDate={date}
-              onSelect={(selectedDate) => {
-                setDate(selectedDate);
-                setError("");
-              }}
-            />
-            <div role="status" aria-atomic="true">
-              {chosen && (
-                <div className="bg-carely-surface max-w-md rounded-lg border p-3 text-sm">
-                  <p className="font-semibold">{formatPatientDate(chosen.date)}</p>
-                  <p className="text-muted-foreground mt-1">
-                    {formatSession(chosen.startTime, chosen.endTime)} ·{" "}
-                    {capacityLabel(chosen.availableCount)}
-                  </p>
-                </div>
-              )}
-            </div>
-            {!availability.dates.length && (
-              <p className="text-muted-foreground text-sm">
-                No sessions are open in the next 14 days. Try another doctor or contact
-                reception.
-              </p>
+      )}
+      {availability && (
+        <fieldset disabled={loading || !!loadError} className="min-w-0 space-y-3">
+          <legend className="mb-2 text-sm font-semibold">Choose a clinic date</legend>
+          <p className="text-muted-foreground text-sm">
+            Booking is open for the next 14 days, including today.
+          </p>
+          <BookingCalendar
+            availability={availability}
+            selectedDate={date}
+            onSelect={(selectedDate) => {
+              setDate(selectedDate);
+              setError("");
+            }}
+          />
+          <div role="status" aria-atomic="true">
+            {chosen && (
+              <div className="bg-carely-surface max-w-md rounded-lg border p-3 text-sm">
+                <p className="font-semibold">{formatPatientDate(chosen.date)}</p>
+                <p className="text-muted-foreground mt-1">
+                  {formatSession(chosen.startTime, chosen.endTime)} ·{" "}
+                  {capacityLabel(chosen.availableCount)}
+                </p>
+              </div>
             )}
-          </fieldset>
-        )
+          </div>
+          {!availability.dates.length && (
+            <p className="text-muted-foreground text-sm">
+              No sessions are open in the next 14 days. Try another doctor or contact
+              reception.
+            </p>
+          )}
+        </fieldset>
       )}
       <Button
         variant="outline"
@@ -158,7 +169,7 @@ export function AppointmentBooking({
         onClick={refreshDates}
         disabled={loading || pending}
       >
-        Refresh dates
+        {loading && availability ? "Refreshing dates…" : "Refresh dates"}
       </Button>
       <p className="text-muted-foreground text-sm">
         Appointments are ordered by number within the clinic session. A number does not

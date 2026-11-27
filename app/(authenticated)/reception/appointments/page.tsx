@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { PageTitle } from "@/components/workspace/workspace-ui";
+import { LoadingRows } from "@/components/workspace/loading-skeleton";
 import { AppointmentCheckIn } from "@/components/reception/appointment-check-in";
 
 export const metadata: Metadata = { title: "Appointments & Check-in" };
@@ -14,13 +15,7 @@ export default function AppointmentCheckInPage() {
         title="Appointments & Check-in"
         description="Find today's booking and check the patient in."
       />
-      <Suspense
-        fallback={
-          <p className="text-muted-foreground text-sm">
-            Loading appointment selection...
-          </p>
-        }
-      >
+      <Suspense fallback={<LoadingRows label="Loading appointments…" />}>
         <AppointmentCheckIn />
       </Suspense>
     </>

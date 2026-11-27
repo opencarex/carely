@@ -6,6 +6,7 @@ import { BookingDetails, bookingStatus } from "@/components/reception/booking-de
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/workspace/workspace-ui";
+import { LoadingRows, SkeletonRows } from "@/components/workspace/loading-skeleton";
 import { useVisiblePolling } from "@/lib/hooks/use-visible-polling";
 import type { ReceptionAppointmentSearchResponse } from "@/lib/schemas/reception";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ export function AppointmentCheckIn() {
   const [search, setSearch] = useState(bookingReference);
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [refreshingSearch, setRefreshingSearch] = useState(false);
   const params = new URLSearchParams({ q: search, page: String(page) });
   const { data, error, loading, refresh } =
     useVisiblePolling<ReceptionAppointmentSearchResponse>(
@@ -26,7 +28,10 @@ export function AppointmentCheckIn() {
 
   function find(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (query.trim() === search && page === 1) void refresh();
+    if (query.trim() === search && page === 1) {
+      setRefreshingSearch(true);
+      void refresh().finally(() => setRefreshingSearch(false));
+    }
     setSearch(query.trim());
     setPage(1);
     setSelectedId(null);
@@ -50,14 +55,17 @@ export function AppointmentCheckIn() {
             controlSize="compact"
           />
         </div>
-        <Button type="submit">Find booking</Button>
+        <Button type="submit" disabled={loading || refreshingSearch}>
+          {loading || refreshingSearch ? "Finding bookings…" : "Find booking"}
+        </Button>
       </form>
       <div className="grid items-start gap-6 lg:grid-cols-3">
         <Panel title="Today's appointments" className="min-w-0">
           {loading && (
-            <p role="status" className="text-muted-foreground text-sm">
-              Loading appointments...
-            </p>
+            <LoadingRows
+              label="Loading appointments…"
+              rowClassName="bg-carely-surface border-0"
+            />
           )}
           {error && (
             <div className="space-y-2">
@@ -129,11 +137,15 @@ export function AppointmentCheckIn() {
         <Panel title="Booking details" className="min-w-0 lg:col-span-2">
           {selected ? (
             <BookingDetails key={selected.id} booking={selected} onCheckedIn={refresh} />
-          ) : (
+          ) : loading ? (
+            <div aria-hidden="true">
+              <SkeletonRows count={1} />
+            </div>
+          ) : !error ? (
             <p className="text-muted-foreground text-sm">
               Select a booking to review check-in details.
             </p>
-          )}
+          ) : null}
         </Panel>
       </div>
     </>

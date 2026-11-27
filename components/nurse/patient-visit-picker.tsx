@@ -10,11 +10,13 @@ export function PatientVisitPicker({
   selectedId,
   onSelect,
   disabled,
+  unavailable,
 }: {
   entries: NurseQueueEntry[];
   selectedId: string;
   onSelect: (id: string) => void;
   disabled: boolean;
+  unavailable: boolean;
 }) {
   const [query, setQuery] = useState("");
   const term = query.trim().toLowerCase();
@@ -57,7 +59,7 @@ export function PatientVisitPicker({
           ))}
         </select>
       </div>
-      {!matches.length && (
+      {!unavailable && !matches.length && (
         <p className="text-muted-foreground text-sm">
           {entries.length
             ? "No waiting visits match your search."

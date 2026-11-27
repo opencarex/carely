@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageTitle, Panel } from "@/components/workspace/workspace-ui";
+import { LoadingRows } from "@/components/workspace/loading-skeleton";
 import { requireRole } from "@/lib/auth-guard";
 import {
   doctorPatientHistoryParamsSchema,
@@ -107,15 +109,15 @@ function PatientVisit({ visit }: { visit: PatientHistoryEncounter }) {
   );
 }
 
-export default async function DoctorPatientsPage({
-  searchParams,
-}: {
+type DoctorPatientsProps = {
   searchParams: Promise<{
     q?: string | string[];
     page?: string | string[];
     patient?: string | string[];
   }>;
-}) {
+};
+
+async function DoctorPatients({ searchParams }: DoctorPatientsProps) {
   const { user } = await requireRole("doctor");
   const params = await searchParams;
   const search = typeof params.q === "string" ? params.q.trim().slice(0, 120) : "";
@@ -148,11 +150,6 @@ export default async function DoctorPatientsPage({
 
   return (
     <>
-      <PageTitle
-        eyebrow="Clinical workspace"
-        title="Patients"
-        description="Review completed visits for patients in your care."
-      />
       <form action="/doctor/patients" className="mb-5 flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1">
           <Input
@@ -239,6 +236,21 @@ export default async function DoctorPatientsPage({
           )}
         </Panel>
       </div>
+    </>
+  );
+}
+
+export default function DoctorPatientsPage({ searchParams }: DoctorPatientsProps) {
+  return (
+    <>
+      <PageTitle
+        eyebrow="Clinical workspace"
+        title="Patients"
+        description="Review completed visits for patients in your care."
+      />
+      <Suspense fallback={<LoadingRows label="Loading patients and visit history…" />}>
+        <DoctorPatients searchParams={searchParams} />
+      </Suspense>
     </>
   );
 }

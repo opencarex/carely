@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   createPrescriptionSchema,
   type CreatePrescriptionResponse,
@@ -19,6 +20,8 @@ export function PrescriptionForm({ encounterId }: { encounterId: string }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [issuedId, setIssuedId] = useState("");
+  const catalogueLoading = !catalogue && !catalogueError;
+  const needsCatalogue = items.some((item) => item.source === "catalogue");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -36,7 +39,7 @@ export function PrescriptionForm({ encounterId }: { encounterId: string }) {
 
   async function issue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) return;
+    if (pending || (catalogueLoading && needsCatalogue)) return;
     setError("");
     setIssuedId("");
     const fields = new FormData(event.currentTarget);
@@ -86,6 +89,11 @@ export function PrescriptionForm({ encounterId }: { encounterId: string }) {
   return (
     <form onSubmit={issue} className="space-y-4 rounded-xl border p-5">
       <h2 className="font-semibold">Issue prescription</h2>
+      {catalogueLoading && needsCatalogue && (
+        <p role="status" className="sr-only">
+          Loading the medicine catalogue…
+        </p>
+      )}
       {catalogueError && (
         <p role="status" className="text-muted-foreground text-sm">
           The medicine catalogue could not load. You can still type a medicine name.
@@ -123,26 +131,30 @@ export function PrescriptionForm({ encounterId }: { encounterId: string }) {
                   <label className="block text-sm" htmlFor={`${prefix}-medicineId`}>
                     Medicine
                   </label>
-                  <select
-                    id={`${prefix}-medicineId`}
-                    name={`${prefix}-medicineId`}
-                    className="bg-card w-full rounded-lg border p-2 text-sm"
-                    defaultValue=""
-                    required
-                  >
-                    <option value="" disabled>
-                      {catalogue?.medicines.length
-                        ? "Select a medicine"
-                        : catalogue || catalogueError
-                          ? "No catalogue medicines available"
-                          : "Loading catalogue..."}
-                    </option>
-                    {catalogue?.medicines.map((medicine) => (
-                      <option key={medicine.id} value={medicine.id}>
-                        {medicine.name} · {medicine.strength} · {medicine.form}
+                  {catalogueLoading ? (
+                    <Skeleton className="h-9 w-full" aria-hidden="true" />
+                  ) : (
+                    <select
+                      id={`${prefix}-medicineId`}
+                      name={`${prefix}-medicineId`}
+                      className="bg-card w-full rounded-lg border p-2 text-sm"
+                      defaultValue=""
+                      required
+                    >
+                      <option value="" disabled>
+                        {catalogue?.medicines.length
+                          ? "Select a medicine"
+                          : catalogueError
+                            ? "Catalogue unavailable"
+                            : "No catalogue medicines available"}
                       </option>
-                    ))}
-                  </select>
+                      {catalogue?.medicines.map((medicine) => (
+                        <option key={medicine.id} value={medicine.id}>
+                          {medicine.name} · {medicine.strength} · {medicine.form}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               ) : (
                 <Input
@@ -226,7 +238,10 @@ export function PrescriptionForm({ encounterId }: { encounterId: string }) {
           >
             Add medicine
           </Button>
-          <Button type="submit" disabled={pending}>
+          <Button
+            type="submit"
+            disabled={pending || (catalogueLoading && needsCatalogue)}
+          >
             {pending ? "Issuing..." : "Issue prescription"}
           </Button>
         </div>

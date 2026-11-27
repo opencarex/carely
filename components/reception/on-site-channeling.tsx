@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { LoadingRows } from "@/components/workspace/loading-skeleton";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -47,8 +48,12 @@ export function OnSiteChanneling() {
   const searchParams = useSearchParams();
   const patientId = searchParams.get("patientId");
   const [patient, setPatient] = useState<ReceptionPatientDetails | null>(null);
-  const [doctors, setDoctors] = useState<PatientDoctorOption[]>([]);
-  const [loadError, setLoadError] = useState("");
+  const [doctors, setDoctors] = useState<PatientDoctorOption[] | null>(null);
+  const [doctorError, setDoctorError] = useState("");
+  const [patientError, setPatientError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
   const [patientPickerOpen, setPatientPickerOpen] = useState(false);
   const [patientQuery, setPatientQuery] = useState("");
   const [patientMatches, setPatientMatches] = useState<ReceptionPatientSummary[]>([]);
@@ -70,10 +75,10 @@ export function OnSiteChanneling() {
         const data: { doctors?: PatientDoctorOption[]; error?: string } =
           await response.json();
         if (!response.ok) throw new Error(data.error ?? "Unable to load doctors.");
-        setDoctors(data.doctors ?? []);
+        if (!controller.signal.aborted) setDoctors(data.doctors ?? []);
       } catch (cause) {
         if (!controller.signal.aborted) {
-          setLoadError(
+          setDoctorError(
             cause instanceof Error ? cause.message : "Unable to load doctors."
           );
         }
@@ -84,9 +89,9 @@ export function OnSiteChanneling() {
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
+    if (!patientId) return;
     const requestedPatientId = patientId;
-    if (!requestedPatientId) return () => controller.abort();
+    const controller = new AbortController();
     const patientUrl = `/api/reception/patients/${encodeURIComponent(requestedPatientId)}`;
     async function loadPatient() {
       try {
@@ -98,13 +103,16 @@ export function OnSiteChanneling() {
           await response.json();
         if (!response.ok || !data.patient)
           throw new Error(data.error ?? "Unable to load patient.");
-        setPatient(data.patient);
-        setLoadError("");
+        if (!controller.signal.aborted) {
+          setPatient(data.patient);
+          setPatientError(null);
+        }
       } catch (cause) {
         if (!controller.signal.aborted) {
-          setLoadError(
-            cause instanceof Error ? cause.message : "Unable to load patient."
-          );
+          setPatientError({
+            id: requestedPatientId,
+            message: cause instanceof Error ? cause.message : "Unable to load patient.",
+          });
         }
       }
     }
@@ -114,7 +122,7 @@ export function OnSiteChanneling() {
 
   async function findPatients() {
     const term = patientQuery.trim();
-    if (!term) return;
+    if (!term || pending) return;
     setPending(true);
     try {
       const response = await fetch(
@@ -215,9 +223,11 @@ export function OnSiteChanneling() {
     }
   }
 
-  const receiptDoctor = doctors.find((doctor) => doctor.id === receipt?.doctorId);
+  const receiptDoctor = doctors?.find((doctor) => doctor.id === receipt?.doctorId);
   const receiptDate = openDates.find((date) => date.date === receipt?.appointmentDate);
   const selectedPatient = patient?.id === patientId ? patient : null;
+  const selectedPatientError =
+    patientError?.id === patientId ? patientError?.message : undefined;
 
   if (!patientId && !selectedPatient) {
     return (
@@ -235,10 +245,13 @@ export function OnSiteChanneling() {
 
   return (
     <div className="space-y-5">
-      {loadError && (
+      {selectedPatientError && (
         <p role="alert" className="text-destructive text-sm">
-          {loadError}
+          {selectedPatientError}
         </p>
+      )}
+      {patientId && !selectedPatient && !selectedPatientError && (
+        <LoadingRows label="Loading patient details…" count={1} />
       )}
       {selectedPatient && (
         <Card className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -276,7 +289,7 @@ export function OnSiteChanneling() {
                   }}
                 />
                 <Button onClick={() => void findPatients()} disabled={pending}>
-                  Find
+                  {pending ? "Searching…" : "Find"}
                 </Button>
               </div>
               <div className="space-y-2">
@@ -347,7 +360,16 @@ export function OnSiteChanneling() {
           }}
         >
           <Panel title="Available doctors">
-            {doctors.length > 0 ? (
+            {doctorError ? (
+              <p role="alert" className="text-destructive text-sm">
+                {doctorError}
+              </p>
+            ) : doctors === null ? (
+              <LoadingRows
+                label="Loading available doctors…"
+                rowClassName="bg-carely-surface border-0"
+              />
+            ) : doctors.length > 0 ? (
               <div className="space-y-3">
                 {doctors.map((doctor) => (
                   <article
@@ -385,6 +407,9 @@ export function OnSiteChanneling() {
             </DialogHeader>
             <div className="space-y-2">
               {bookingDoctor && <p className="font-semibold">{bookingDoctor.name}</p>}
+              {pending && openDates.length === 0 && (
+                <LoadingRows label="Loading clinic dates…" count={2} />
+              )}
               {openDates.map((date) => (
                 <Button
                   key={date.date}
@@ -418,7 +443,7 @@ export function OnSiteChanneling() {
                 disabled={pending || !selectedDate}
                 onClick={() => void saveBooking()}
               >
-                {pending ? "Saving..." : "Save booking"}
+                {pending && selectedDate ? "Saving…" : "Save booking"}
               </Button>
             </DialogFooter>
           </DialogContent>

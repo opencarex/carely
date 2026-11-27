@@ -176,10 +176,16 @@ export function IntakeWorkspace({
           entries={entries}
           selectedId={saved ? "" : selectedId}
           onSelect={select}
-          disabled={pending || navigating}
+          disabled={pending || navigating || (queueUnavailable && !entries.length)}
+          unavailable={queueUnavailable && !entries.length}
         />
+        {navigating && (
+          <p aria-hidden="true" className="text-muted-foreground -mt-3 mb-5 text-sm">
+            Loading intake details…
+          </p>
+        )}
       </div>
-      {!saved && selectedId && !entry && (
+      {!saved && selectedId && !entry && !queueUnavailable && (
         <Panel title="Visit unavailable">
           <p>This visit is no longer in your waiting queue.</p>
           <Link
