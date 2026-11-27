@@ -18,18 +18,20 @@ import {
 import { SIDEBAR_ICON_SIZE } from "@/lib/constants/ui";
 import { roleNavigation } from "@/lib/config/navigation";
 import { cn } from "@/lib/utils";
+import { useWorkspaceNavigation } from "@/components/workspace/workspace-navigation";
 
 const focusOutline =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 function NavLinks({
   role,
-  onNavigate,
+  onSelection,
 }: {
   role: keyof typeof roleNavigation;
-  onNavigate?: () => void;
+  onSelection?: () => void;
 }) {
   const pathname = usePathname();
+  const { navigate } = useWorkspaceNavigation();
   const items = roleNavigation[role];
   const patient = role === "patient";
   return (
@@ -44,7 +46,12 @@ function NavLinks({
           <Link
             key={item.href}
             href={item.href}
-            onClick={onNavigate}
+            onNavigate={(event) => {
+              // Track the transition in the shell, which stays mounted when the drawer closes.
+              event.preventDefault();
+              onSelection?.();
+              navigate(item.href);
+            }}
             aria-current={active ? "page" : undefined}
             className={cn(
               "flex items-center gap-3 px-3 py-2.5 text-sm font-medium",
@@ -123,7 +130,7 @@ function MobileNavigation({
               <X size={20} aria-hidden="true" />
             </DialogClose>
           </div>
-          <NavLinks role={role} onNavigate={() => setOpen(false)} />
+          <NavLinks role={role} onSelection={() => setOpen(false)} />
           <div className="mt-auto shrink-0 pt-4">
             <LogoutButton />
           </div>

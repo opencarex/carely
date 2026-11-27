@@ -2,6 +2,10 @@ import { Suspense, type ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Avatar } from "@/components/ui/avatar";
 import { MobileNavigation, NavLinks } from "@/components/workspace/nav-links";
+import {
+  WorkspaceNavigationProgress,
+  WorkspaceNavigationProvider,
+} from "@/components/workspace/workspace-navigation";
 import { roleNavigation } from "@/lib/config/navigation";
 import { appContent } from "@/lib/config/content";
 import { getHospitalContact } from "@/lib/services/settings";
@@ -107,7 +111,7 @@ async function AppShell({ children, role, user: account }: AppShellProps) {
   );
 
   const topbar = (
-    <header className="bg-card flex min-h-16 shrink-0 items-center gap-3 border-b px-4 md:min-h-18 md:gap-4 md:px-6">
+    <header className="bg-card relative flex min-h-16 shrink-0 items-center gap-3 border-b px-4 md:min-h-18 md:gap-4 md:px-6">
       <div className={cn("shrink-0", patient ? hideWhenSidebarVisible : "md:w-56")}>
         <Brand />
       </div>
@@ -138,38 +142,40 @@ async function AppShell({ children, role, user: account }: AppShellProps) {
           </Suspense>
         </div>
       </div>
+      <WorkspaceNavigationProgress />
     </header>
   );
 
-  if (patient)
-    return (
-      <div
-        data-patient-shell
-        className="bg-carely-surface flex h-dvh min-h-0 flex-col overflow-hidden"
-      >
-        <div className="flex min-h-0 flex-1">
-          {sidebar}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {topbar}
-            <main className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
-              <div className="mx-auto w-full max-w-7xl">{children}</div>
-            </main>
-          </div>
+  const main = (
+    <main className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto w-full max-w-7xl">{children}</div>
+    </main>
+  );
+
+  const shell = patient ? (
+    <div
+      data-patient-shell
+      className="bg-carely-surface flex h-dvh min-h-0 flex-col overflow-hidden"
+    >
+      <div className="flex min-h-0 flex-1">
+        {sidebar}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {topbar}
+          {main}
         </div>
       </div>
-    );
-
-  return (
+    </div>
+  ) : (
     <div className="bg-carely-surface flex h-dvh min-h-0 flex-col overflow-hidden">
       {topbar}
       <div className="flex min-h-0 flex-1">
         {sidebar}
-        <main className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto w-full max-w-7xl">{children}</div>
-        </main>
+        {main}
       </div>
     </div>
   );
+
+  return <WorkspaceNavigationProvider>{shell}</WorkspaceNavigationProvider>;
 }
 
 export { AppShell };

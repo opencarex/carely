@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { PageTitle, Panel } from "@/components/workspace/workspace-ui";
 import { PatientVisitPicker } from "./patient-visit-picker";
@@ -10,6 +10,7 @@ import { PatientContext } from "./patient-context";
 import { VitalsForm } from "./vitals-form";
 import { PreliminaryForm } from "./preliminary-form";
 import { useVisiblePolling } from "@/lib/hooks/use-visible-polling";
+import { useWorkspaceNavigation } from "@/components/workspace/workspace-navigation";
 import { intakeValidationMessages, parseIntakeForm } from "@/lib/intake-form";
 import type {
   NurseIntakeReceipt,
@@ -34,7 +35,7 @@ export function IntakeWorkspace({
   const entries = poll.data?.entries ?? initialEntries;
   const entry = entries.find((item) => item.encounterId === selectedId);
   const [pending, setPending] = useState(false);
-  const [navigating, startTransition] = useTransition();
+  const { navigate, isPending: navigating } = useWorkspaceNavigation();
   const busy = useRef(false);
   const dirty = useRef(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -88,10 +89,8 @@ export function IntakeWorkspace({
     )
       return;
     dirty.current = false;
-    startTransition(() =>
-      router.push(
-        id ? `/nurse/vitals?encounterId=${encodeURIComponent(id)}` : "/nurse/vitals"
-      )
+    navigate(
+      id ? `/nurse/vitals?encounterId=${encodeURIComponent(id)}` : "/nurse/vitals"
     );
   }
 
