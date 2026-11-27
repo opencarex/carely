@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { Loader2, Mail, Plus, UserCheck, UserX } from "lucide-react";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -17,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Panel } from "@/components/workspace/workspace-ui";
+import { LoadingSkeleton } from "@/components/workspace/loading-skeleton";
 import {
   createStaffSchema,
   type CreateStaffInput,
@@ -36,10 +38,43 @@ const AVAILABLE_ROLES: { value: StaffRole; label: string }[] = [
   { value: "receptionist", label: "Receptionist" },
 ];
 
+const staffRowClassName =
+  "bg-carely-surface flex flex-col gap-4 rounded-xl p-4 xl:grid xl:grid-cols-12 xl:items-center";
+
+function StaffDirectorySkeleton() {
+  return (
+    <LoadingSkeleton label="Loading hospital staff…">
+      <div className="space-y-3">
+        {[0, 1, 2].map((row) => (
+          <div key={row} className={staffRowClassName}>
+            <div className="flex min-w-0 items-center gap-3 xl:col-span-4">
+              <Skeleton className="size-9 shrink-0 rounded-full" />
+              <div className="min-w-0 space-y-1">
+                <Skeleton className="h-5 w-28 max-w-full" />
+                <Skeleton className="h-4 w-36 max-w-full" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 xl:col-span-4">
+              <Skeleton className="h-5 w-16" />
+              <Skeleton className="h-5 w-24 max-w-full" />
+            </div>
+            <div className="flex items-center justify-between gap-3 xl:col-span-4 xl:justify-end">
+              <Skeleton className="h-5 w-16 rounded-full" />
+              <Skeleton className="h-8 w-24" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </LoadingSkeleton>
+  );
+}
+
 export function StaffDirectory() {
-  const [staff, setStaff] = useState<StaffListItem[]>([]);
+  const [staff, setStaff] = useState<StaffListItem[] | null>(null);
   const [specialties, setSpecialties] = useState<SpecialtyOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [directoryError, setDirectoryError] = useState("");
+  const directoryRequest = useRef<AbortController | null>(null);
   const [query, setQuery] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -79,36 +114,40 @@ export function StaffDirectory() {
     label: s.name,
   }));
 
-  // Load initial data from APIs
   const loadData = useCallback(async () => {
+    directoryRequest.current?.abort();
+    const request = new AbortController();
+    directoryRequest.current = request;
+    const { signal } = request;
     setIsLoading(true);
+    setDirectoryError("");
     try {
       const [staffRes, specialtiesRes] = await Promise.all([
-        fetch("/api/admin/staff"),
-        fetch("/api/admin/specialties"),
+        fetch("/api/admin/staff", { signal }),
+        fetch("/api/admin/specialties", { signal }),
       ]);
-
       if (staffRes.ok) {
         const staffData = await staffRes.json();
-        setStaff(staffData.staff || []);
+        if (!signal.aborted) setStaff(staffData.staff || []);
       }
-
       if (specialtiesRes.ok) {
         const specialtiesData = await specialtiesRes.json();
-        setSpecialties(specialtiesData.specialties || []);
+        if (!signal.aborted) setSpecialties(specialtiesData.specialties || []);
       }
+      if (!staffRes.ok) throw new Error("Unable to load the staff directory.");
     } catch {
-      setError("Failed to fetch staff directory from server.");
+      if (!signal.aborted) setDirectoryError("Unable to load the staff directory.");
     } finally {
-      setIsLoading(false);
+      if (!signal.aborted) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadData();
+    void loadData();
+    return () => directoryRequest.current?.abort();
   }, [loadData]);
 
-  const filtered = staff.filter((item) =>
+  const filtered = (staff ?? []).filter((item) =>
     `${item.name} ${item.email} ${item.department} ${item.role}`
       .toLowerCase()
       .includes(query.trim().toLowerCase())
@@ -181,10 +220,11 @@ export function StaffDirectory() {
         return;
       }
 
-      setStaff((prev) =>
-        prev.map((item) =>
-          item.id === member.id ? { ...item, active: !member.active } : item
-        )
+      setStaff(
+        (prev) =>
+          prev?.map((item) =>
+            item.id === member.id ? { ...item, active: !member.active } : item
+          ) ?? null
       );
       setMessage(
         `Staff member "${member.name}" marked as ${!member.active ? "active" : "inactive"}.`
@@ -411,18 +451,21 @@ export function StaffDirectory() {
       )}
 
       <Panel title="Staff Directory">
-        {isLoading ? (
-          <div className="py-12 text-center text-sm text-slate-500">
-            <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-primary" />
-            Loading hospital staff...
+        {directoryError && (
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <p role="alert" className="text-destructive text-sm">
+              {directoryError}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => void loadData()}>
+              Try again
+            </Button>
           </div>
-        ) : (
+        )}
+        {isLoading && staff === null && <StaffDirectorySkeleton />}
+        {staff !== null && (
           <div className="space-y-3">
             {filtered.map((member) => (
-              <article
-                key={member.id}
-                className="bg-carely-surface flex flex-col gap-4 rounded-xl p-4 xl:grid xl:grid-cols-12 xl:items-center"
-              >
+              <article key={member.id} className={staffRowClassName}>
                 <div className="flex min-w-0 items-center gap-3 xl:col-span-4">
                   <Avatar
                     alt={member.name}
