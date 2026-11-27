@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { LoadingFields } from "@/components/workspace/loading-skeleton";
 import { PageTitle } from "@/components/workspace/workspace-ui";
 import { PatientRegistration } from "@/components/reception/patient-registration";
 
@@ -14,7 +15,14 @@ export default function PatientRegistrationPage() {
         title="Walk-in Registration"
         description="Register a walk-in patient or find an existing record."
       />
-      <Suspense fallback={<p role="status">Loading patient registration...</p>}>
+      <Suspense
+        fallback={
+          <LoadingFields
+            label="Loading patient registration…"
+            className="sm:grid-cols-2"
+          />
+        }
+      >
         <PatientRegistration />
       </Suspense>
     </>

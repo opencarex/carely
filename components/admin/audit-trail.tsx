@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Panel } from "@/components/workspace/workspace-ui";
+import { LoadingRows } from "@/components/workspace/loading-skeleton";
 
 type AuditEntry = {
   id: string;
@@ -79,6 +80,7 @@ export function AuditTrail() {
   const [pageSize, setPageSize] = useState(20);
   const [selected, setSelected] = useState<AuditEntry | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -104,14 +106,17 @@ export function AuditTrail() {
         });
         const body = (await response.json()) as AuditResponse & { error?: string };
         if (!response.ok) throw new Error(body.error ?? "Unable to load audit events.");
+        if (controller.signal.aborted) return;
         setEntries(body.entries);
         setPagination(body.pagination);
+        setHasLoaded(true);
         setSelected((current) =>
           current ? (body.entries.find((entry) => entry.id === current.id) ?? null) : null
         );
       } catch (loadError) {
-        if (loadError instanceof DOMException && loadError.name === "AbortError") return;
+        if (controller.signal.aborted) return;
         setEntries([]);
+        setHasLoaded(false);
         setError(
           loadError instanceof Error ? loadError.message : "Unable to load audit events."
         );
@@ -228,11 +233,13 @@ export function AuditTrail() {
             />
           </div>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-muted-foreground text-sm">
-              {loading
-                ? "Loading audit events..."
-                : `Showing ${firstShown}-${lastShown} of ${pagination.total} events`}
-            </p>
+            {hasLoaded && (
+              <p className="text-muted-foreground text-sm" role="status">
+                {loading
+                  ? "Updating audit events…"
+                  : `Showing ${firstShown}-${lastShown} of ${pagination.total} events`}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" onClick={clearFilters}>
                 Clear filters
@@ -297,7 +304,7 @@ export function AuditTrail() {
       )}
 
       <Panel title="Activity log">
-        <div className="space-y-3" aria-busy={loading}>
+        <div className="space-y-3">
           {error && (
             <div role="alert" className="py-8 text-center">
               <p className="font-semibold">Audit events could not be loaded</p>
@@ -311,10 +318,11 @@ export function AuditTrail() {
               </Button>
             </div>
           )}
-          {!error && loading && entries.length === 0 && (
-            <p role="status" className="text-muted-foreground py-8 text-center text-sm">
-              Loading audit events...
-            </p>
+          {loading && !hasLoaded && (
+            <LoadingRows
+              label="Loading audit events…"
+              rowClassName="bg-carely-surface border-0"
+            />
           )}
           {!error &&
             entries.map((entry) => (

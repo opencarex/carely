@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/workspace/workspace-ui";
 import { useVisiblePolling } from "@/lib/hooks/use-visible-polling";
+import { LoadingRows } from "@/components/workspace/loading-skeleton";
 import type {
   DoctorConsultationEntry,
   DoctorConsultationQueueResponse,
@@ -85,7 +86,7 @@ export function ConsultationQueue() {
           Unable to refresh your queue. Refresh before taking an action.
         </p>
       )}
-      {loading && <p role="status">Loading your queue…</p>}
+      {loading && <LoadingRows label="Loading your queue…" />}
       {!loading && !error && !data?.entries.length && (
         <p className="text-muted-foreground">
           No checked-in patients assigned to you today.

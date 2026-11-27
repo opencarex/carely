@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Panel, StatCards } from "@/components/workspace/workspace-ui";
+import { LoadingRows } from "@/components/workspace/loading-skeleton";
 import { MedicineForm } from "./medicine-form";
 import { StockBadge } from "./stock-badge";
 import { useMedicineCatalogue } from "./pharmacy-api";
@@ -33,7 +34,6 @@ export function MedicineInventory() {
 
   return (
     <>
-      {loading && <p role="status">Loading medicine inventory...</p>}
       {error && (
         <p role="alert" className="text-destructive mb-4">
           Unable to load the latest stock.{" "}
@@ -95,6 +95,12 @@ export function MedicineInventory() {
           <p className="text-muted-foreground mb-4 text-sm">
             Available quantity excludes expired batches. Receive stock to add a new batch.
           </p>
+          {loading && (
+            <LoadingRows
+              label="Loading medicine inventory…"
+              rowClassName="bg-carely-surface border-0"
+            />
+          )}
           <div className="space-y-3">
             {filtered.map((medicine) => (
               <article

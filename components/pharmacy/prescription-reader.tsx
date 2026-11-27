@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { LoadingRows } from "@/components/workspace/loading-skeleton";
 import { writePharmacy } from "./pharmacy-api";
 import type {
   DispensingEligibility,
@@ -26,18 +27,20 @@ export function PrescriptionReader() {
   const [id, setId] = useState("");
   const [data, setData] = useState<PharmacistPrescriptionView | null>(null);
   const [message, setMessage] = useState("");
-  const [pending, setPending] = useState(false);
+  const [action, setAction] = useState<"search" | "dispense" | null>(null);
+  const pending = action !== null;
   async function load(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
     setMessage("");
     setData(null);
-    setPending(true);
+    setAction("search");
     try {
       setData(await readPrescription(id.trim()));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to load prescription.");
     } finally {
-      setPending(false);
+      setAction(null);
     }
   }
 
@@ -46,7 +49,7 @@ export function PrescriptionReader() {
     if (!window.confirm("Dispense this prescription? This will deduct stock.")) return;
 
     setMessage("");
-    setPending(true);
+    setAction("dispense");
     try {
       await writePharmacy(`/api/pharmacy/prescriptions/${data.id}/dispense`, "POST", {});
       setData({ ...data, status: "dispensed", dispensing: { status: "dispensed" } });
@@ -56,7 +59,7 @@ export function PrescriptionReader() {
       );
       setData(await readPrescription(data.id).catch(() => null));
     } finally {
-      setPending(false);
+      setAction(null);
     }
   }
   return (
@@ -72,9 +75,18 @@ export function PrescriptionReader() {
           required
         />
         <Button type="submit" disabled={pending}>
-          Find prescription
+          {action === "search" ? "Finding prescription…" : "Find prescription"}
         </Button>
       </form>
+      {action === "search" && (
+        <div className="mt-5">
+          <LoadingRows
+            label="Loading prescription details…"
+            count={1}
+            rowClassName="min-h-36"
+          />
+        </div>
+      )}
       {message && (
         <p role="alert" className="text-destructive mt-4 text-sm">
           {message}

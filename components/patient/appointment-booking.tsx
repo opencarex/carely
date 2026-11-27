@@ -10,11 +10,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { BookingCalendar, capacityLabel } from "@/components/patient/booking-calendar";
 import { FactCard } from "@/components/patient/patient-shared";
+import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingSkeleton } from "@/components/workspace/loading-skeleton";
 import { formatPatientDate, formatSession } from "@/lib/patient-appointments";
 import type {
   BookAppointmentResult,
-  OpenDateEntry,
   OpenDatesResponse,
   PatientDoctorOption,
 } from "@/lib/schemas/booking";
@@ -27,7 +29,7 @@ export function AppointmentBooking({
   visitReasonId: string;
 }) {
   const router = useRouter();
-  const [dates, setDates] = useState<OpenDateEntry[]>([]);
+  const [availability, setAvailability] = useState<OpenDatesResponse | null>(null);
   const [date, setDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -36,7 +38,7 @@ export function AppointmentBooking({
   const [pending, setPending] = useState(false);
   const [revision, setRevision] = useState(0);
   const submitting = useRef(false);
-  const chosen = dates.find((entry) => entry.date === date);
+  const chosen = availability?.dates.find((entry) => entry.date === date);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -48,11 +50,9 @@ export function AppointmentBooking({
         );
         const data: OpenDatesResponse & { error?: string } = await response.json();
         if (!response.ok) throw new Error(data.error ?? "Unable to load dates.");
-        setDates(data.dates);
+        setAvailability(data);
         setDate((selected) =>
-          data.dates.some((entry) => entry.date === selected)
-            ? selected
-            : (data.dates[0]?.date ?? "")
+          data.dates.some((entry) => entry.date === selected) ? selected : ""
         );
         setLoadError("");
       } catch (cause) {
@@ -113,34 +113,49 @@ export function AppointmentBooking({
           {doctor.specialtyName ?? "General clinic"}
         </p>
       </div>
-      {loading ? (
-        <p role="status">Loading available dates...</p>
-      ) : loadError ? (
+      {loading && !availability && (
+        <LoadingSkeleton label="Loading available dates…">
+          <div className="bg-card w-full max-w-md space-y-3 rounded-xl border p-3">
+            <Skeleton className="mx-auto h-5 w-28" />
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: 28 }, (_, day) => (
+                <Skeleton key={day} className="aspect-square w-full" />
+              ))}
+            </div>
+          </div>
+        </LoadingSkeleton>
+      )}
+      {loadError && (
         <p role="alert" className="text-destructive text-sm">
           {loadError}
         </p>
-      ) : (
-        <fieldset className="space-y-3">
+      )}
+      {availability && (
+        <fieldset disabled={loading || !!loadError} className="min-w-0 space-y-3">
           <legend className="mb-2 text-sm font-semibold">Choose a clinic date</legend>
-          {dates.map((entry) => (
-            <Button
-              key={entry.date}
-              variant={date === entry.date ? "default" : "outline"}
-              className="h-auto w-full flex-col items-start gap-1 p-3 whitespace-normal"
-              aria-pressed={date === entry.date}
-              onClick={() => {
-                setDate(entry.date);
-                setError("");
-              }}
-            >
-              <span>{formatPatientDate(entry.date)}</span>
-              <span className="text-xs">
-                {formatSession(entry.startTime, entry.endTime)} · {entry.availableCount}{" "}
-                places left
-              </span>
-            </Button>
-          ))}
-          {!dates.length && (
+          <p className="text-muted-foreground text-sm">
+            Booking is open for the next 14 days, including today.
+          </p>
+          <BookingCalendar
+            availability={availability}
+            selectedDate={date}
+            onSelect={(selectedDate) => {
+              setDate(selectedDate);
+              setError("");
+            }}
+          />
+          <div role="status" aria-atomic="true">
+            {chosen && (
+              <div className="bg-carely-surface max-w-md rounded-lg border p-3 text-sm">
+                <p className="font-semibold">{formatPatientDate(chosen.date)}</p>
+                <p className="text-muted-foreground mt-1">
+                  {formatSession(chosen.startTime, chosen.endTime)} ·{" "}
+                  {capacityLabel(chosen.availableCount)}
+                </p>
+              </div>
+            )}
+          </div>
+          {!availability.dates.length && (
             <p className="text-muted-foreground text-sm">
               No sessions are open in the next 14 days. Try another doctor or contact
               reception.
@@ -154,7 +169,7 @@ export function AppointmentBooking({
         onClick={refreshDates}
         disabled={loading || pending}
       >
-        Refresh dates
+        {loading && availability ? "Refreshing dates…" : "Refresh dates"}
       </Button>
       <p className="text-muted-foreground text-sm">
         Appointments are ordered by number within the clinic session. A number does not
@@ -195,7 +210,7 @@ export function AppointmentBooking({
               <FactCard label="Date" value={formatPatientDate(chosen.date)} />
               <FactCard
                 label="Clinic session"
-                value={formatSession(chosen.startTime, chosen.endTime)}
+                value={`${formatSession(chosen.startTime, chosen.endTime)} · ${capacityLabel(chosen.availableCount)}`}
               />
             </>
           )}

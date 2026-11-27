@@ -1,6 +1,8 @@
 import Image from "next/image";
 
 import Link from "next/link";
+import { Suspense } from "react";
+import { LoadingDashboard } from "@/components/workspace/loading-skeleton";
 import { formatPatientDate } from "@/lib/patient-appointments";
 import { requireRole } from "@/lib/auth-guard";
 import { getPatientAppointments } from "@/lib/services/patient-booking";
@@ -17,7 +19,7 @@ const prescriptionDate = new Intl.DateTimeFormat("en-LK", {
   timeZone: "Asia/Colombo",
 });
 
-export default async function PatientPage() {
+async function PatientDashboard() {
   const session = await requireRole("patient");
   const [appointments, { latest, pendingCount }] = await Promise.all([
     getPatientAppointments(session.user.id),
@@ -216,5 +218,13 @@ export default async function PatientPage() {
         </Panel>
       </div>
     </>
+  );
+}
+
+export default function PatientPage() {
+  return (
+    <Suspense fallback={<LoadingDashboard label="Loading your dashboard…" />}>
+      <PatientDashboard />
+    </Suspense>
   );
 }

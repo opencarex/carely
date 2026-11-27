@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export function useVisiblePolling<T>(url: string, intervalMs = 30_000) {
+export function useVisiblePolling<T>(url: string | null, intervalMs = 30_000) {
   const [result, setResult] = useState<{
-    url: string;
+    url: string | null;
     data: T | null;
     error: string | null;
     loading: boolean;
@@ -12,7 +12,7 @@ export function useVisiblePolling<T>(url: string, intervalMs = 30_000) {
   const controller = useRef<AbortController | null>(null);
   const version = useRef(0);
   const refresh = useCallback(async () => {
-    if (document.visibilityState !== "visible") return;
+    if (!url || document.visibilityState !== "visible") return;
     const requestVersion = ++version.current;
     controller.current?.abort();
     const pending = new AbortController();
@@ -44,6 +44,7 @@ export function useVisiblePolling<T>(url: string, intervalMs = 30_000) {
   }, []);
 
   useEffect(() => {
+    if (!url) return;
     const initial = window.setTimeout(() => void refresh(), 0);
     const onVisibility = () => {
       if (document.visibilityState === "visible") void refresh();
@@ -62,12 +63,12 @@ export function useVisiblePolling<T>(url: string, intervalMs = 30_000) {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", onFocus);
     };
-  }, [intervalMs, refresh, cancelPending]);
+  }, [url, intervalMs, refresh, cancelPending]);
   // Hide data from the previous URL while its replacement loads.
   return {
     data: result.url === url ? result.data : null,
     error: result.url === url ? result.error : null,
-    loading: result.url !== url || result.loading,
+    loading: Boolean(url && (result.url !== url || result.loading)),
     refresh,
   };
 }

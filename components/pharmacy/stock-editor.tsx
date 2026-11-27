@@ -6,6 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/workspace/workspace-ui";
 import { StockItemForm } from "./stock-item-form";
 import { StockBadge } from "./stock-badge";
+import {
+  StockBatchesSkeleton,
+  StockEditorSkeleton,
+  stockBatchRowClassName,
+} from "./stock-skeleton";
 import { useMedicineCatalogue } from "./pharmacy-api";
 import { useVisiblePolling } from "@/lib/hooks/use-visible-polling";
 import type { MedicineStockView, StockBatchesResponse } from "@/lib/schemas/pharmacy";
@@ -35,7 +40,7 @@ function MedicineBatches({
         />
       </Panel>
       <Panel title="Stock batches">
-        {loading && <p role="status">Loading stock batches...</p>}
+        {loading && <StockBatchesSkeleton />}
         {error && (
           <p role="alert" className="text-destructive">
             Unable to load the latest batches.{" "}
@@ -46,10 +51,7 @@ function MedicineBatches({
         )}
         <div className="space-y-3">
           {data?.batches.map((batch) => (
-            <article
-              key={batch.id}
-              className="bg-carely-surface flex flex-wrap justify-between gap-3 rounded-lg p-3 text-sm"
-            >
+            <article key={batch.id} className={stockBatchRowClassName}>
               <div>
                 <p className="font-semibold">{batch.batchNo}</p>
                 <p className="text-muted-foreground">
@@ -93,9 +95,10 @@ export function StockEditor() {
   const medicine =
     data?.medicines.find((item) => item.id === requestedId) ?? data?.medicines[0];
 
+  if (loading) return <StockEditorSkeleton />;
+
   return (
     <div className="space-y-5">
-      {loading && <p role="status">Loading medicines...</p>}
       {error && (
         <p role="alert" className="text-destructive">
           Unable to load the latest stock.{" "}

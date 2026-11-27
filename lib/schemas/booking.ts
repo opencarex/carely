@@ -66,6 +66,8 @@ export interface OpenDatesResponse {
   doctorId: string;
   doctorName?: string;
   specialtyName?: string;
+  bookingWindow: { startDate: string; endDate: string };
+  unavailableDates: { date: string; status: "full" | "ended" }[];
   dates: OpenDateEntry[];
 }
 

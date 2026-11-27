@@ -256,6 +256,7 @@ export async function getOpenDatesForDoctor(
     day.setUTCDate(start.getUTCDate() + offset);
     return { date: day.toISOString().slice(0, 10), dayOfWeek: day.getUTCDay() };
   });
+  const bookingWindow = { startDate: window[0].date, endDate: window[13].date };
   const sessions = await db
     .select()
     .from(doctorAvailability)
@@ -274,8 +275,8 @@ export async function getOpenDatesForDoctor(
     .where(
       and(
         eq(appointment.doctorId, doctorId),
-        gte(appointment.appointmentDate, window[0].date),
-        lte(appointment.appointmentDate, window[13].date),
+        gte(appointment.appointmentDate, bookingWindow.startDate),
+        lte(appointment.appointmentDate, bookingWindow.endDate),
         ne(appointment.status, "cancelled")
       )
     )
@@ -284,13 +285,21 @@ export async function getOpenDatesForDoctor(
   const byWeekday = new Map(sessions.map((session) => [session.dayOfWeek, session]));
   const byDate = new Map(counts.map((count) => [count.date, count.bookedCount]));
   const dates: OpenDatesResponse["dates"] = [];
+  const unavailableDates: OpenDatesResponse["unavailableDates"] = [];
   for (const day of window) {
     const session = byWeekday.get(day.dayOfWeek);
-    if (!session || (day.date === now.date && now.time >= session.endTime)) continue;
+    if (!session) continue;
 
     const bookedCount = byDate.get(day.date) ?? 0;
     const availableCount = session.maxPatients - bookedCount;
-    if (availableCount <= 0) continue;
+    if (availableCount <= 0) {
+      unavailableDates.push({ date: day.date, status: "full" });
+      continue;
+    }
+    if (day.date === now.date && now.time >= session.endTime) {
+      unavailableDates.push({ date: day.date, status: "ended" });
+      continue;
+    }
 
     dates.push({
       ...day,
@@ -306,6 +315,8 @@ export async function getOpenDatesForDoctor(
     doctorId,
     doctorName: profile.name,
     ...(profile.specialtyName === null ? {} : { specialtyName: profile.specialtyName }),
+    bookingWindow,
+    unavailableDates,
     dates,
   };
 }

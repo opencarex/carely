@@ -2,9 +2,14 @@ import { Suspense, type ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { Avatar } from "@/components/ui/avatar";
 import { MobileNavigation, NavLinks } from "@/components/workspace/nav-links";
+import {
+  WorkspaceNavigationProgress,
+  WorkspaceNavigationProvider,
+} from "@/components/workspace/workspace-navigation";
 import { roleNavigation } from "@/lib/config/navigation";
 import { appContent } from "@/lib/config/content";
 import { getHospitalContact } from "@/lib/services/settings";
+import { cn } from "@/lib/utils";
 
 type AppShellProps = {
   children: ReactNode;
@@ -13,13 +18,15 @@ type AppShellProps = {
 };
 
 const workspaceNames: Record<string, string> = {
-  patient: "Patient Portal",
   doctor: "Doctor Workspace",
   nurse: "Nurse Workspace",
   reception: "Front Desk Workspace",
   pharmacy: "Pharmacy Workspace",
   admin: "Admin Workspace",
 };
+
+// Allow room for the patient sidebar's six links, help card, and logout footer.
+const hideWhenSidebarVisible = "[@media(min-width:48rem)_and_(min-height:48rem)]:hidden";
 
 function Brand() {
   return (
@@ -74,23 +81,13 @@ async function AppShell({ children, role, user: account }: AppShellProps) {
 
   const sidebar = (
     <aside
-      className={
-        patient
-          ? "bg-card hidden h-full w-68 shrink-0 flex-col border-r px-4 py-5 md:flex lg:px-5"
-          : "bg-card hidden h-full w-60 shrink-0 flex-col border-r p-4 md:flex"
-      }
-    >
-      {patient ? (
-        <Brand />
-      ) : (
-        <div className="hidden md:block">
-          <p className="text-muted-foreground text-xs font-semibold uppercase">
-            Care operations
-          </p>
-          <p className="mt-2 text-sm font-semibold">{workspaceNames[role]}</p>
-        </div>
+      className={cn(
+        "bg-card hidden h-full shrink-0 flex-col border-r [@media(min-width:48rem)_and_(min-height:48rem)]:flex",
+        patient ? "w-68 px-4 py-5 lg:px-5" : "w-60 p-4"
       )}
-      <div className="mt-4">
+    >
+      {patient && <Brand />}
+      <div className={patient ? "mt-4" : undefined}>
         <HospitalCard name={hospital.name} />
       </div>
       <p className="text-muted-foreground mt-6 mb-2 text-xs font-semibold uppercase">
@@ -99,21 +96,13 @@ async function AppShell({ children, role, user: account }: AppShellProps) {
       <Suspense fallback={<div className="h-36" />}>
         <NavLinks role={role} />
       </Suspense>
-      <div className="mt-auto space-y-4 pt-8">
-        {patient ? (
-          <div className="bg-carely-surface rounded-lg border p-4">
+      <div className="mt-auto pt-4">
+        {patient && (
+          <div className="bg-carely-surface mb-2 rounded-lg border p-3">
             <p className="text-sm font-semibold">Need help?</p>
-            <p className="text-muted-foreground mt-2 text-xs">
+            <p className="text-muted-foreground mt-1 text-xs">
               {appContent.portal.supportNote}
             </p>
-          </div>
-        ) : (
-          <div className="bg-carely-surface flex items-center gap-3 rounded-lg border p-3">
-            <Avatar alt={user.name} fallback={user.initials} />
-            <div>
-              <p className="text-xs font-semibold">{user.name}</p>
-              <p className="text-muted-foreground text-xs">{user.detail}</p>
-            </div>
           </div>
         )}
         <LogoutButton />
@@ -121,80 +110,72 @@ async function AppShell({ children, role, user: account }: AppShellProps) {
     </aside>
   );
 
-  const desktopTopbar = (
-    <div className="bg-card hidden min-h-18 items-center justify-between gap-4 border-b px-6 md:flex">
-      <div>
-        {!patient ? (
-          <p className="text-primary text-xs font-semibold uppercase">
-            {workspaceNames[role]}
-          </p>
-        ) : (
-          <p className="text-primary text-xs font-semibold uppercase">
-            {appContent.brand.patientPortal}
-          </p>
-        )}
+  const topbar = (
+    <header className="bg-card relative flex min-h-16 shrink-0 items-center gap-3 border-b px-4 md:min-h-18 md:gap-4 md:px-6">
+      <div className={cn("shrink-0", patient ? hideWhenSidebarVisible : "md:w-56")}>
+        <Brand />
+      </div>
+      <div className="hidden md:block">
+        <p className="text-primary text-xs font-semibold uppercase">
+          {patient ? appContent.brand.patientPortal : workspaceNames[role]}
+        </p>
         <p className="text-xs font-medium">{clinicDate.format(new Date())}</p>
       </div>
-      <div className="flex items-center gap-3 rounded-lg border px-3 py-2">
-        <Avatar alt={user.name} fallback={user.initials} size={34} />
-        <div className="hidden sm:block">
-          <p className="text-xs font-semibold">{user.name}</p>
-          <p className="text-muted-foreground text-xs">{user.detail}</p>
+      <div className="ml-auto flex min-w-0 items-center gap-2 md:gap-3">
+        <div className="flex min-w-0 items-center gap-2 md:gap-3 md:rounded-lg md:border md:px-3 md:py-2">
+          <Avatar
+            alt={user.name}
+            fallback={user.initials}
+            size={34}
+            className={patient ? undefined : "hidden min-[400px]:inline-flex"}
+          />
+          <div className={cn("min-w-0", patient && "hidden md:block")}>
+            <p className="truncate text-xs font-semibold" title={user.name}>
+              {user.name}
+            </p>
+            <p className="text-muted-foreground text-xs">{user.detail}</p>
+          </div>
+        </div>
+        <div className={cn("shrink-0", hideWhenSidebarVisible)}>
+          <Suspense fallback={<div className="size-10" />}>
+            <MobileNavigation role={role} patientAccount={patient ? user : undefined} />
+          </Suspense>
         </div>
       </div>
-    </div>
-  );
-
-  const mobileTopbar = (
-    <header
-      className={`${patient ? "z-30 shrink-0" : "sticky top-0 z-30"} bg-card flex h-16 items-center justify-between border-b px-4 md:hidden`}
-    >
-      <Brand />
-      <div className="flex items-center gap-2">
-        <Avatar alt={user.name} fallback={user.initials} size={34} />
-        <Suspense fallback={<div className="size-10" />}>
-          <MobileNavigation role={role} user={user} />
-        </Suspense>
-      </div>
+      <WorkspaceNavigationProgress />
     </header>
   );
 
-  if (patient)
-    return (
-      <div
-        data-patient-shell
-        className="bg-carely-surface flex h-dvh min-h-0 flex-col overflow-hidden"
-      >
-        {mobileTopbar}
-        <div className="flex min-h-0 flex-1">
-          {sidebar}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {desktopTopbar}
-            <main className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
-              <div className="mx-auto w-full max-w-7xl">{children}</div>
-            </main>
-          </div>
-        </div>
-      </div>
-    );
+  const main = (
+    <main className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto w-full max-w-7xl">{children}</div>
+    </main>
+  );
 
-  return (
-    <div className="bg-carely-surface flex h-dvh min-h-0 flex-col overflow-hidden">
-      {mobileTopbar}
-      <header className="bg-card hidden min-h-18 shrink-0 items-center border-b md:flex">
-        <div className="w-60 shrink-0 px-5">
-          <Brand />
-        </div>
-        <div className="min-w-0 flex-1">{desktopTopbar}</div>
-      </header>
+  const shell = patient ? (
+    <div
+      data-patient-shell
+      className="bg-carely-surface flex h-dvh min-h-0 flex-col overflow-hidden"
+    >
       <div className="flex min-h-0 flex-1">
         {sidebar}
-        <main className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto w-full max-w-7xl">{children}</div>
-        </main>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {topbar}
+          {main}
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div className="bg-carely-surface flex h-dvh min-h-0 flex-col overflow-hidden">
+      {topbar}
+      <div className="flex min-h-0 flex-1">
+        {sidebar}
+        {main}
       </div>
     </div>
   );
+
+  return <WorkspaceNavigationProvider>{shell}</WorkspaceNavigationProvider>;
 }
 
 export { AppShell };

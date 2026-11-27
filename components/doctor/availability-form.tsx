@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { AvailabilitySkeleton } from "@/components/doctor/availability-skeleton";
 import {
   saveAvailabilitySchema,
   type AvailabilityResponse,
@@ -105,15 +106,7 @@ export function DoctorAvailabilityForm({
   }
 
   if (isLoading) {
-    return (
-      <Card className="p-6" role="status">
-        <Loader2
-          className="text-primary mr-2 inline size-4 animate-spin"
-          aria-hidden="true"
-        />
-        Loading your weekly schedule...
-      </Card>
-    );
+    return <AvailabilitySkeleton />;
   }
 
   if (loadError) {

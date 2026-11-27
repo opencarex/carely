@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { buttonVariants } from "@/components/ui/button";
+import { LoadingDashboard } from "@/components/workspace/loading-skeleton";
 import { PageTitle, Panel, StatCards } from "@/components/workspace/workspace-ui";
 import { requireRole } from "@/lib/auth-guard";
 import { getAdminOverview } from "@/lib/services/admin-overview";
@@ -14,7 +16,7 @@ const activityTime = new Intl.DateTimeFormat("en-LK", {
   timeZone: "Asia/Colombo",
 });
 
-export default async function AdminDashboardPage() {
+async function AdminOverview() {
   const { user } = await requireRole("admin");
   const { staffCount, scheduledDoctors, openQueues, entries } = await getAdminOverview({
     userId: user.id,
@@ -22,11 +24,6 @@ export default async function AdminDashboardPage() {
   });
   return (
     <>
-      <PageTitle
-        eyebrow="Administration"
-        title="Hospital Overview"
-        description="Staff and hospital operations at a glance."
-      />
       <StatCards
         metrics={[
           { label: "Active staff", value: String(staffCount), tone: "blue" },
@@ -85,6 +82,21 @@ export default async function AdminDashboardPage() {
           </div>
         </Panel>
       </div>
+    </>
+  );
+}
+
+export default function AdminDashboardPage() {
+  return (
+    <>
+      <PageTitle
+        eyebrow="Administration"
+        title="Hospital Overview"
+        description="Staff and hospital operations at a glance."
+      />
+      <Suspense fallback={<LoadingDashboard label="Loading the hospital overview…" />}>
+        <AdminOverview />
+      </Suspense>
     </>
   );
 }

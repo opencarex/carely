@@ -1,29 +1,46 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
-import { SIDEBAR_ICON_SIZE } from "@/lib/constants/ui";
 
 export function LogoutButton() {
-  const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
 
   const handleLogout = async () => {
+    setIsSigningOut(true);
+    setSignOutFailed(false);
     try {
-      await authClient.signOut();
-    } finally {
-      router.push("/login");
+      const result = await authClient.signOut({ fetchOptions: { throw: true } });
+      if (!result?.success) throw new Error("Sign-out did not complete.");
+      window.location.replace("/login");
+    } catch {
+      setSignOutFailed(true);
+      setIsSigningOut(false);
     }
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleLogout}
-      className="text-foreground hover:text-destructive flex w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium transition-colors"
-    >
-      <LogOut size={SIDEBAR_ICON_SIZE} />
-      Log out
-    </button>
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        fullWidth
+        disabled={isSigningOut}
+        focusableWhenDisabled
+        onClick={handleLogout}
+        className="border-destructive text-destructive hover:bg-destructive/10 focus-visible:ring-ring focus-visible:ring-offset-card justify-start focus-visible:ring-offset-2"
+      >
+        <LogOut aria-hidden="true" />
+        {isSigningOut ? "Logging out…" : "Log out"}
+      </Button>
+      {signOutFailed && (
+        <p role="alert" className="text-destructive mt-2 text-sm">
+          Unable to log out. Please try again.
+        </p>
+      )}
+    </>
   );
 }
